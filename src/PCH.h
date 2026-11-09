@@ -13,6 +13,7 @@
 #include <cstring>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>

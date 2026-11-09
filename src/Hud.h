@@ -1,6 +1,6 @@
 #pragma once
 
-// Everything drawn on screen: the cursor, the item labels and the settings page.
+// Everything drawn on screen: the cursor, outlines, item labels and the settings page.
 // Drawn through SKSE Menu Framework, which is required.
 namespace Hud
 {

@@ -11,7 +11,7 @@ namespace Game
 			kNone,
 			kMove,     // click on the ground: the attack is swallowed
 			kAttack,   // click on an enemy / attack in place: the game gets the click
-			kSwallow   // click picked something up
+			kSwallow   // click used something (item, door, NPC...)
 		};
 
 		Primary             g_primary = Primary::kNone;
@@ -305,8 +305,19 @@ namespace Game
 		}
 
 		// -----------------------------------------------------------------------
-		// Picking
+		// Using things
 		// -----------------------------------------------------------------------
+		// Where to walk to use something: its middle (a door's own position can be at its hinge).
+		RE::NiPoint3 UsePoint(RE::TESObjectREFR* a_ref)
+		{
+			if (!a_ref->IsActor()) {
+				if (auto* node = a_ref->Get3D(); node && node->worldBound.radius > 0.0f) {
+					return node->worldBound.center;
+				}
+			}
+			return a_ref->GetPosition();
+		}
+
 		void Activate(RE::TESObjectREFR* a_ref, RE::PlayerCharacter* a_player)
 		{
 			if (!a_ref || a_ref->IsDisabled() || a_ref->IsMarkedForDeletion()) {
@@ -316,11 +327,12 @@ namespace Game
 			if (controlMap && !controlMap->IsActivateControlsEnabled()) {
 				return;
 			}
-			// The same activation the E key does: picks up items (and flags theft), opens containers, talks.
+			// The same activation the E key does: picks up items (and flags theft), opens
+			// containers and doors, loots corpses, starts dialogue.
 			a_ref->ActivateRef(a_player, 0, nullptr, 1, false);
 			g_scanTimer = 0.0f;  // refresh the labels straight away
 			if (Settings::DebugLog) {
-				logs::info("[pickup] activated {:08X}", a_ref->GetFormID());
+				logs::info("[use] activated {:08X}", a_ref->GetFormID());
 			}
 		}
 
@@ -331,7 +343,7 @@ namespace Game
 				return;
 			}
 			const auto  pos = a_player->GetPosition();
-			const auto  at = ref->GetPosition();
+			const auto  at = UsePoint(ref.get());
 			const float dist = std::hypot(at.x - pos.x, at.y - pos.y);
 			if (dist <= Settings::PickupRange) {
 				Halt();
@@ -341,109 +353,222 @@ namespace Game
 			}
 		}
 
-		float DistToSegment(float a_px, float a_py, float a_ax, float a_ay, float a_bx, float a_by)
-		{
-			const float abx = a_bx - a_ax;
-			const float aby = a_by - a_ay;
-			const float len2 = abx * abx + aby * aby;
-			float       t = len2 > 1e-6f ? ((a_px - a_ax) * abx + (a_py - a_ay) * aby) / len2 : 0.0f;
-			t = std::clamp(t, 0.0f, 1.0f);
-			return std::hypot(a_px - (a_ax + abx * t), a_py - (a_ay + aby * t));
-		}
-
-		// Nearest hostile whose body (feet-to-head line on screen) is under the cursor.
-		RE::Actor* EnemyUnderCursor(RE::PlayerCharacter* a_player)
-		{
-			auto* lists = RE::ProcessLists::GetSingleton();
-			if (!lists) {
-				return nullptr;
-			}
-			const float w = State::screenW.load();
-			const float h = State::screenH.load();
-			const float cx = State::cursorX.load();
-			const float cy = State::cursorY.load();
-
-			RE::Actor* best = nullptr;
-			float      bestDist = 1e9f;
-			for (const auto& handle : lists->highActorHandles) {
-				const auto ptr = handle.get();
-				auto*      actor = ptr.get();
-				if (!actor || actor == a_player || actor->IsDead() || !actor->Is3DLoaded() || !actor->IsHostileToActor(a_player)) {
-					continue;
-				}
-				const auto   feet = actor->GetPosition();
-				RE::NiPoint3 head = feet;
-				head.z += std::max(actor->GetHeight(), 60.0f);
-				float fu = 0.0f;
-				float fv = 0.0f;
-				float hu = 0.0f;
-				float hv = 0.0f;
-				if (!WorldToScreen(feet, fu, fv) || !WorldToScreen(head, hu, hv)) {
-					continue;
-				}
-				const float bodyLen = std::hypot((hu - fu) * w, (hv - fv) * h);
-				const float radius = std::clamp(bodyLen * 0.4f, 14.0f, 90.0f);
-				const float dist = DistToSegment(cx, cy, fu * w, fv * h, hu * w, hv * h);
-				if (dist <= radius && dist < bestDist) {
-					bestDist = dist;
-					best = actor;
-				}
-			}
-			return best;
-		}
-
-		RE::ObjectRefHandle Hovered()
+		// What the cursor is on, as worked out by the HUD.
+		bool Hovered(RE::ObjectRefHandle& a_handle, Kind& a_kind)
 		{
 			std::scoped_lock guard(State::lock);
-			return State::hovered;
+			a_handle = State::hovered;
+			a_kind = State::hoveredKind;
+			return static_cast<bool>(a_handle);
 		}
 
 		// -----------------------------------------------------------------------
-		// Label targets
+		// Targets: everything nearby that gets an outline, a label or a click
 		// -----------------------------------------------------------------------
+		std::vector<Target> g_targets;
+
+		constexpr std::uint32_t kWhite = Rgb(235, 235, 235);
+		constexpr std::uint32_t kGold = Rgb(230, 195, 100);
+		constexpr std::uint32_t kRed = Rgb(255, 60, 60);
+
+		bool HasKeyword(RE::TESBoundObject* a_base, std::string_view a_keyword)
+		{
+			const auto* keywords = a_base->As<RE::BGSKeywordForm>();
+			return keywords && keywords->HasKeywordString(a_keyword);
+		}
+
+		// The loot filter. Skyrim lets you pick up almost anything (cabbages, kettles, buckets),
+		// so "can be picked up" isn't enough: this decides what counts as loot.
 		bool ClassifyItem(RE::TESObjectREFR* a_ref, RE::TESBoundObject* a_base, std::uint32_t& a_color)
 		{
 			switch (a_base->GetFormType()) {
 			case RE::FormType::Weapon:
 			case RE::FormType::Armor:
 			case RE::FormType::Ammo:
-				a_color = Rgb(235, 235, 235);
+				if (!a_base->GetPlayable()) {
+					return false;
+				}
+				a_color = kWhite;
 				break;
 			case RE::FormType::AlchemyItem:
+				{
+					const auto* potion = a_base->As<RE::AlchemyItem>();
+					if (potion && potion->IsFood() && !Settings::ShowFood) {
+						return false;
+					}
+					a_color = Rgb(130, 220, 150);
+				}
+				break;
 			case RE::FormType::Ingredient:
+				if (!Settings::ShowIngredients) {
+					return false;
+				}
 				a_color = Rgb(130, 220, 150);
 				break;
 			case RE::FormType::Book:
+				{
+					const auto* book = a_base->As<RE::TESObjectBOOK>();
+					if (!(book && book->TeachesSpell()) && !Settings::ShowBooks) {
+						return false;  // spell tomes always show
+					}
+					a_color = Rgb(140, 210, 235);
+				}
+				break;
 			case RE::FormType::Scroll:
 				a_color = Rgb(140, 210, 235);
 				break;
 			case RE::FormType::KeyMaster:
 			case RE::FormType::SoulGem:
-				a_color = Rgb(230, 195, 100);
+				a_color = kGold;
 				break;
 			case RE::FormType::Misc:
-				a_color = a_base->IsGold() ? Rgb(230, 195, 100) : Rgb(200, 200, 200);
+				if (a_base->IsGold() || a_base->IsLockpick() || HasKeyword(a_base, "VendorItemGem") || HasKeyword(a_base, "VendorItemOreIngot")) {
+					a_color = kGold;
+				} else if (Settings::ShowClutter) {
+					a_color = Rgb(200, 200, 200);
+				} else {
+					return false;  // kettles, buckets, plates...
+				}
 				break;
 			case RE::FormType::Light:
 				{
 					const auto* light = a_base->As<RE::TESObjectLIGH>();
-					if (!light || !light->CanBeCarried()) {
+					if (!Settings::ShowClutter || !light || !light->CanBeCarried()) {
 						return false;
 					}
 					a_color = Rgb(200, 200, 200);
 				}
 				break;
 			default:
-				return false;
+				return false;  // anything that can't go in the inventory
 			}
 			if (Settings::LabelMinValue > 0 && !a_base->IsGold()) {
 				const auto value = a_base->GetGoldValue();
 				if (value >= 0 && value < Settings::LabelMinValue) {
-					return false;  // loot filter
+					return false;
 				}
 			}
 			if (a_ref->IsEnchanted()) {
 				a_color = Rgb(136, 136, 255);  // magic item
+			}
+			return true;
+		}
+
+		// Keeps only the outermost points in 26 directions. The outline of those on screen is
+		// (near enough) the outline of all the points, from any camera angle.
+		struct Extremes
+		{
+			static constexpr int kCount = 26;
+
+			Extremes()
+			{
+				std::fill(std::begin(best), std::end(best), -1e30f);
+			}
+
+			void Add(const RE::NiPoint3& a_point)
+			{
+				int i = 0;
+				for (int x = -1; x <= 1; ++x) {
+					for (int y = -1; y <= 1; ++y) {
+						for (int z = -1; z <= 1; ++z) {
+							if (x == 0 && y == 0 && z == 0) {
+								continue;
+							}
+							const float d = a_point.x * static_cast<float>(x) + a_point.y * static_cast<float>(y) + a_point.z * static_cast<float>(z);
+							if (d > best[i]) {
+								best[i] = d;
+								point[i] = a_point;
+							}
+							++i;
+						}
+					}
+				}
+				++count;
+			}
+
+			RE::NiPoint3 point[kCount];
+			float        best[kCount];
+			int          count{ 0 };
+		};
+
+		// Walks a skeleton and collects where its bones are.
+		void CollectBones(RE::NiAVObject* a_object, const RE::NiPoint3& a_centre, float a_limit, Extremes& a_out, int a_depth)
+		{
+			auto* node = a_object ? a_object->AsNode() : nullptr;
+			if (!node || a_depth > 32 || a_out.count > 600) {
+				return;
+			}
+			// Helper nodes that aren't part of the body (the camera target, look-at point, bumper).
+			if (const char* name = node->name.c_str(); name && (std::strstr(name, "Cam") || std::strstr(name, "Look") || std::strstr(name, "Bumper") || std::strstr(name, "x_NPC"))) {
+				return;
+			}
+			const auto& at = node->world.translate;
+			const float dx = at.x - a_centre.x;
+			const float dy = at.y - a_centre.y;
+			const float dz = at.z - a_centre.z;
+			if (dx * dx + dy * dy + dz * dz <= a_limit * a_limit) {
+				a_out.Add(at);
+			}
+			for (auto& child : node->GetChildren()) {
+				CollectBones(child.get(), a_centre, a_limit, a_out, a_depth + 1);
+			}
+		}
+
+		// An actor's outline points: its bones, so the outline follows the pose.
+		void ActorPoints(RE::Actor* a_actor, Target& a_target)
+		{
+			const auto  pos = a_actor->GetPosition();
+			const float height = std::max(a_actor->GetHeight(), 60.0f);
+			a_target.pos = pos;
+			a_target.points.clear();
+			auto* root = a_actor->Get3D();
+			if (!root) {
+				return;
+			}
+			const RE::NiPoint3 centre{ pos.x, pos.y, pos.z + height * 0.5f };
+			const float        limit = std::max(height, root->worldBound.radius) * 1.25f;
+			Extremes           extremes;
+			CollectBones(root, centre, limit, extremes, 0);
+			if (extremes.count >= 4) {
+				a_target.points.assign(std::begin(extremes.point), std::end(extremes.point));
+				return;
+			}
+			// No usable skeleton: a cylinder around where it stands.
+			for (int i = 0; i < 8; ++i) {
+				const float angle = static_cast<float>(i) * 0.785398f;
+				const float x = pos.x + std::cos(angle) * 25.0f;
+				const float y = pos.y + std::sin(angle) * 25.0f;
+				a_target.points.push_back({ x, y, pos.z });
+				a_target.points.push_back({ x, y, pos.z + height });
+			}
+		}
+
+		// An object's outline points: the corners of its bounding box, wherever it's lying.
+		bool BoxPoints(RE::TESObjectREFR* a_ref, Target& a_target)
+		{
+			auto* node = a_ref->Get3D();
+			if (!node) {
+				return false;
+			}
+			a_target.points.clear();
+			const auto min = a_ref->GetBoundMin();
+			const auto max = a_ref->GetBoundMax();
+			if (max.x - min.x > 1.0f || max.y - min.y > 1.0f || max.z - min.z > 1.0f) {
+				const auto& world = node->world;
+				for (int i = 0; i < 8; ++i) {
+					const RE::NiPoint3 corner{ (i & 1) ? max.x : min.x, (i & 2) ? max.y : min.y, (i & 4) ? max.z : min.z };
+					a_target.points.push_back(world.translate + world.rotate * (corner * world.scale));
+				}
+				return true;
+			}
+			// No bounds on the base object: a box inside the model's bounding sphere.
+			const float r = node->worldBound.radius * 0.6f;
+			if (r <= 0.0f) {
+				return false;
+			}
+			const auto& c = node->worldBound.center;
+			for (int i = 0; i < 8; ++i) {
+				a_target.points.push_back({ c.x + ((i & 1) ? r : -r), c.y + ((i & 2) ? r : -r), c.z + ((i & 4) ? r : -r) });
 			}
 			return true;
 		}
@@ -454,16 +579,20 @@ namespace Game
 			if (!tes) {
 				return;
 			}
-			const auto origin = a_player->GetPosition();
+			const auto  origin = a_player->GetPosition();
+			const auto* cell = a_player->GetParentCell();
+			const bool  interior = cell && cell->IsInteriorCell();
+			const float radius = std::max(Settings::LabelRadius, Settings::OutlineRadius);
 
-			struct Found
+			struct Item
 			{
 				Target target;
 				float  dist;
 			};
-			std::vector<Found> found;
+			std::vector<Item>   items;
+			std::vector<Target> others;
 
-			tes->ForEachReferenceInRange(a_player, Settings::LabelRadius, [&](RE::TESObjectREFR* a_ref) {
+			tes->ForEachReferenceInRange(a_player, radius, [&](RE::TESObjectREFR* a_ref) {
 				constexpr auto next = RE::BSContainer::ForEachResult::kContinue;
 				if (!a_ref || a_ref == a_player || a_ref->IsDisabled() || a_ref->IsMarkedForDeletion() || !a_ref->Is3DLoaded()) {
 					return next;
@@ -472,69 +601,119 @@ namespace Game
 				if (!base) {
 					return next;
 				}
-				auto pos = a_ref->GetPosition();
-				if (std::fabs(pos.z - origin.z) > Settings::LabelMaxHeightDiff) {
-					return next;
-				}
+				const auto  pos = a_ref->GetPosition();
+				const float heightDiff = std::fabs(pos.z - origin.z);
 
 				Target target;
+				target.handle = a_ref->GetHandle();
+
 				if (a_ref->IsActor()) {
 					auto* actor = a_ref->As<RE::Actor>();
-					if (!Settings::Actors || !actor) {
+					// Indoors, other floors are out (the cutaway hides them).
+					if (!actor || (interior && heightDiff > Settings::LabelMaxHeightDiff)) {
 						return next;
 					}
 					if (actor->IsDead()) {
 						target.kind = Kind::kCorpse;
-						target.color = Rgb(170, 170, 170);
-					} else if (!actor->IsHostileToActor(a_player)) {
-						target.kind = Kind::kNpc;
-						target.color = Rgb(235, 235, 235);
-						pos.z += actor->GetHeight() * 0.5f;
+						target.color = kGold;
+					} else if (actor->IsHostileToActor(a_player)) {
+						target.kind = Kind::kEnemy;
+						target.color = kRed;
 					} else {
-						return next;
+						target.kind = Kind::kNpc;
+						target.color = kWhite;
 					}
-				} else if (base->GetFormType() == RE::FormType::Container) {
+					target.pad = 10.0f;
+					ActorPoints(actor, target);
+					if (!target.points.empty()) {
+						others.push_back(std::move(target));
+					}
+					return next;
+				}
+
+				if (heightDiff > Settings::LabelMaxHeightDiff) {
+					return next;
+				}
+				target.pos = pos;
+				const auto type = base->GetFormType();
+				if (type == RE::FormType::Container) {
 					if (!Settings::Containers) {
 						return next;
 					}
 					target.kind = Kind::kContainer;
-					target.color = Rgb(200, 200, 200);
+					target.color = kGold;
+				} else if (type == RE::FormType::Door) {
+					target.kind = Kind::kDoor;
+					target.color = kWhite;
 				} else {
-					if (!ClassifyItem(a_ref, base, target.color)) {
+					const float dist = std::hypot(pos.x - origin.x, pos.y - origin.y);
+					if (dist > Settings::LabelRadius || !ClassifyItem(a_ref, base, target.color)) {
+						return next;
+					}
+					const char* name = a_ref->GetDisplayFullName();
+					if (!name || !*name) {
 						return next;
 					}
 					target.kind = Kind::kItem;
-				}
-
-				const char* name = a_ref->GetDisplayFullName();
-				if (!name || !*name) {
-					return next;
-				}
-				target.text = name;
-				if (target.kind == Kind::kItem) {
+					target.text = name;
 					if (const auto count = a_ref->extraList.GetCount(); count > 1) {
 						target.text += std::format(" ({})", count);
 					}
 					if (a_ref->IsCrimeToActivate()) {
 						target.color = Rgb(255, 90, 90);  // taking it is stealing
 					}
+					if (BoxPoints(a_ref, target)) {
+						items.push_back({ std::move(target), dist });
+					}
+					return next;
 				}
-				target.handle = a_ref->GetHandle();
-				target.pos = pos;
-				found.push_back({ std::move(target), std::hypot(pos.x - origin.x, pos.y - origin.y) });
+				if (BoxPoints(a_ref, target)) {
+					others.push_back(std::move(target));
+				}
 				return next;
 			});
 
-			// Nearest first: the HUD gives the closest items their true position and stacks the rest.
-			std::sort(found.begin(), found.end(), [](const Found& a_lhs, const Found& a_rhs) { return a_lhs.dist < a_rhs.dist; });
-			std::vector<Target> targets;
-			targets.reserve(found.size());
-			for (auto& f : found) {
-				targets.push_back(std::move(f.target));
+			Target self;
+			self.handle = a_player->GetHandle();
+			self.kind = Kind::kPlayer;
+			self.color = kWhite;
+			self.pad = 10.0f;
+			ActorPoints(a_player, self);
+			if (!self.points.empty()) {
+				others.push_back(std::move(self));
 			}
 
+			// Items nearest first: the HUD gives the closest their true label position and stacks the rest.
+			std::sort(items.begin(), items.end(), [](const Item& a_lhs, const Item& a_rhs) { return a_lhs.dist < a_rhs.dist; });
+			g_targets.clear();
+			g_targets.reserve(items.size() + others.size());
+			for (auto& item : items) {
+				g_targets.push_back(std::move(item.target));
+			}
+			for (auto& other : others) {
+				g_targets.push_back(std::move(other));
+			}
+		}
+
+		// Every frame: living actors move, so their outlines are refreshed, then the list is
+		// handed to the HUD.
+		void PublishTargets()
+		{
+			for (auto& target : g_targets) {
+				if (target.kind != Kind::kEnemy && target.kind != Kind::kNpc && target.kind != Kind::kPlayer) {
+					continue;
+				}
+				const auto ref = target.handle.get();
+				auto*      actor = ref ? ref->As<RE::Actor>() : nullptr;
+				if (actor && actor->Is3DLoaded()) {
+					ActorPoints(actor, target);
+				} else {
+					target.points.clear();
+				}
+			}
+			auto             snapshot = std::make_shared<const std::vector<Target>>(g_targets);
 			std::scoped_lock guard(State::lock);
-			State::targets = std::move(targets);
+			State::targets = std::move(snapshot);
 		}
 
 		// -----------------------------------------------------------------------
@@ -561,6 +740,7 @@ namespace Game
 				g_scanTimer = 0.15f;
 				Scan(a_player);
 			}
+			PublishTargets();
 
 			auto* controlMap = RE::ControlMap::GetSingleton();
 			if (controlMap && !controlMap->IsMovementControlsEnabled()) {
@@ -607,7 +787,7 @@ namespace Game
 					Halt();
 					return;
 				}
-				g_target = ref->GetPosition();
+				g_target = UsePoint(ref.get());
 				range = Settings::PickupRange * 0.8f;
 			}
 
@@ -635,7 +815,12 @@ namespace Game
 				g_stuckTimer = 0.0f;
 				g_stuckPos = pos;
 				if (moved < 8.0f && !following) {
+					// Blocked just short of the thing being used (a door frame, a counter): close enough counts.
+					const auto ref = g_pending.get();
 					Halt();
+					if (ref && dist <= Settings::PickupRange * 2.5f) {
+						Activate(ref.get(), a_player);
+					}
 					return;
 				}
 			}
@@ -740,8 +925,9 @@ namespace Game
 		g_faceTime = 0.0f;
 		g_scanTimer = 0.0f;
 		State::moveKeysHeld.store(0);
+		g_targets.clear();
 		std::scoped_lock guard(State::lock);
-		State::targets.clear();
+		State::targets.reset();
 		State::hovered = {};
 	}
 
@@ -756,19 +942,24 @@ namespace Game
 			g_primary = Primary::kNone;
 			g_primaryHeld = false;
 			if (State::gameplay.load() && State::moveKeysHeld.load() == 0) {
-				RE::NiPoint3 point;
-				const auto   hovered = Settings::LeftClickPickup ? Hovered() : RE::ObjectRefHandle{};
-				if (hovered) {
-					Interact(hovered, player);
-					g_primary = Primary::kSwallow;
-				} else if (State::attackInPlaceHeld.load()) {
+				RE::NiPoint3        point;
+				RE::ObjectRefHandle hovered;
+				Kind                kind = Kind::kItem;
+				const bool          onSomething = Hovered(hovered, kind);
+				const bool          onEnemy = onSomething && kind == Kind::kEnemy;
+				if (State::attackInPlaceHeld.load()) {
 					if (CursorGround(player, point)) {
 						FaceToward(point, player);
 					}
 					g_primary = Primary::kAttack;
-				} else if (auto* enemy = Settings::ClickEnemies ? EnemyUnderCursor(player) : nullptr) {
-					FaceToward(enemy->GetPosition(), player);
+				} else if (onEnemy && Settings::ClickEnemies) {
+					if (const auto enemy = hovered.get()) {
+						FaceToward(enemy->GetPosition(), player);
+					}
 					g_primary = Primary::kAttack;
+				} else if (onSomething && !onEnemy && Settings::ClickInteract) {
+					Interact(hovered, player);  // pick up, loot, open, enter, talk
+					g_primary = Primary::kSwallow;
 				} else if (CursorGround(player, point)) {
 					StartMove(point, {}, player);
 					g_primary = Primary::kMove;
@@ -792,7 +983,9 @@ namespace Game
 		if (!player || !State::gameplay.load()) {
 			return;
 		}
-		if (const auto hovered = Hovered()) {
+		RE::ObjectRefHandle hovered;
+		Kind                kind = Kind::kItem;
+		if (Hovered(hovered, kind) && kind != Kind::kEnemy) {
 			Interact(hovered, player);
 		}
 	}

@@ -103,6 +103,7 @@ namespace Settings
 
 		Sensitivity = GetFloat(ini, "Cursor.Sensitivity", Sensitivity, 0.1f, 10.0f);
 		CursorSize = GetFloat(ini, "Cursor.Size", CursorSize, 0.5f, 4.0f);
+		CursorRing = GetBool(ini, "Cursor.Ring", CursorRing);
 		BlockMouseLook = GetBool(ini, "Cursor.BlockMouseLook", BlockMouseLook);
 		RotateKey = GetCode(ini, "Cursor.RotateKey", RotateKey);
 
@@ -112,12 +113,12 @@ namespace Settings
 		MaxDistance = GetFloat(ini, "Move.MaxDistance", MaxDistance, 200.0f, 20000.0f);
 		MoveMode = GetInt(ini, "Move.Mode", MoveMode, 0, 2);
 		ClickEnemies = GetBool(ini, "Move.ClickEnemies", ClickEnemies);
+		ClickInteract = GetBool(ini, "Move.ClickInteract", ClickInteract);
 		AttackInPlaceKey = GetCode(ini, "Move.AttackInPlaceKey", AttackInPlaceKey);
 		FaceTime = GetFloat(ini, "Move.FaceTime", FaceTime, 0.0f, 1.0f);
 
 		PickupButton = GetCode(ini, "Pickup.Button", PickupButton);
 		PickupRange = GetFloat(ini, "Pickup.Range", PickupRange, 50.0f, 1000.0f);
-		LeftClickPickup = GetBool(ini, "Pickup.LeftClickPickup", LeftClickPickup);
 		Containers = GetBool(ini, "Pickup.Containers", Containers);
 		Actors = GetBool(ini, "Pickup.Actors", Actors);
 
@@ -128,6 +129,17 @@ namespace Settings
 		MaxLabels = GetInt(ini, "Labels.Max", MaxLabels, 1, 300);
 		LabelScale = GetFloat(ini, "Labels.Scale", LabelScale, 0.5f, 3.0f);
 		LabelMinValue = GetInt(ini, "Labels.MinValue", LabelMinValue, 0, 1000000);
+		ShowFood = GetBool(ini, "Labels.ShowFood", ShowFood);
+		ShowIngredients = GetBool(ini, "Labels.ShowIngredients", ShowIngredients);
+		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
+		ShowClutter = GetBool(ini, "Labels.ShowClutter", ShowClutter);
+
+		Outlines = GetBool(ini, "Outlines.Enabled", Outlines);
+		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
+		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
+		OutlineItems = GetBool(ini, "Outlines.Items", OutlineItems);
+		OutlineThickness = GetFloat(ini, "Outlines.Thickness", OutlineThickness, 0.5f, 6.0f);
+		OutlineRadius = GetFloat(ini, "Outlines.Radius", OutlineRadius, 500.0f, 20000.0f);
 
 		DebugLog = GetBool(ini, "Debug.Log", DebugLog);
 
@@ -153,6 +165,8 @@ namespace Settings
 		out << "[Cursor]\n";
 		out << "; Cursor speed and size. The cursor can never leave the screen.\n";
 		out << std::format("Sensitivity = {}\nSize = {}\n", Sensitivity, CursorSize);
+		out << "; 1 = a ring behind the sword, loot bag and exclamation mark, in the symbol's colour.\n";
+		out << std::format("Ring = {}\n", b(CursorRing));
 		out << "; 1 = the mouse moves the cursor instead of the camera. Hold RotateKey to rotate the camera (0 = no key).\n";
 		out << std::format("BlockMouseLook = {}\nRotateKey = {:#x}\n\n", b(BlockMouseLook), RotateKey);
 
@@ -164,14 +178,15 @@ namespace Settings
 		out << "; 0 = auto, 1 = True Directional Movement, 2 = turn the player directly (no TDM).\n";
 		out << std::format("Mode = {}\n", MoveMode);
 		out << "; Clicking a hostile attacks it. AttackInPlaceKey + click attacks toward the cursor (0x2A = Left Shift).\n";
-		out << std::format("ClickEnemies = {}\nAttackInPlaceKey = {:#x}\nFaceTime = {}\n\n", b(ClickEnemies), AttackInPlaceKey, FaceTime);
+		out << "; ClickInteract = clicking an item, container, corpse, door or NPC walks over and uses it.\n";
+		out << std::format("ClickEnemies = {}\nClickInteract = {}\nAttackInPlaceKey = {:#x}\nFaceTime = {}\n\n", b(ClickEnemies), b(ClickInteract),
+			AttackInPlaceKey, FaceTime);
 
 		out << "[Pickup]\n";
-		out << "; Button that picks up the item under the cursor (2 = middle mouse / mouse 3). Out of Range, you walk there first.\n";
+		out << "; Extra button that uses what's under the cursor (2 = middle mouse / mouse 3). Out of Range, you walk there first.\n";
 		out << std::format("Button = {}\nRange = {}\n", PickupButton, PickupRange);
-		out << "; LeftClickPickup = the move button also picks up. Containers / Actors = the pickup button also opens chests,\n";
-		out << "; loots corpses and talks to NPCs.\n";
-		out << std::format("LeftClickPickup = {}\nContainers = {}\nActors = {}\n\n", b(LeftClickPickup), b(Containers), b(Actors));
+		out << "; Containers = chests and barrels can be clicked. Actors = corpses (loot) and NPCs (talk) can be clicked.\n";
+		out << std::format("Containers = {}\nActors = {}\n\n", b(Containers), b(Actors));
 
 		out << "[Labels]\n";
 		out << "; 0 = only the item under the cursor, 1 = always, 2 = while Key is held (0x38 = Left Alt).\n";
@@ -179,7 +194,17 @@ namespace Settings
 		out << "; How far away items get a label, and how far above/below you (keeps other floors out).\n";
 		out << std::format("Radius = {}\nMaxHeightDiff = {}\n", LabelRadius, LabelMaxHeightDiff);
 		out << "; Most labels on screen, text size, and a loot filter: hide items worth less than MinValue.\n";
-		out << std::format("Max = {}\nScale = {}\nMinValue = {}\n\n", MaxLabels, LabelScale, LabelMinValue);
+		out << std::format("Max = {}\nScale = {}\nMinValue = {}\n", MaxLabels, LabelScale, LabelMinValue);
+		out << "; Loot filter. Always shown: weapons, armor, ammo, potions, scrolls, spell tomes, keys, soul gems, gold, lockpicks,\n";
+		out << "; gems, ore and ingots. These add the rest: food, ingredients, other books, and clutter (kettles, buckets...).\n";
+		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
+			b(ShowClutter));
+
+		out << "[Outlines]\n";
+		out << "; Thin outlines: red = enemies, white = you and NPCs, items = their label colour.\n";
+		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlineItems));
+		out << "; Line thickness in pixels, and how far from you actors get an outline.\n";
+		out << std::format("Thickness = {}\nRadius = {}\n\n", OutlineThickness, OutlineRadius);
 
 		out << "[Debug]\n";
 		out << std::format("Log = {}\n", b(DebugLog));

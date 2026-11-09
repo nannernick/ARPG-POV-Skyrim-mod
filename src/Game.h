@@ -1,24 +1,29 @@
 #pragma once
 
-// Everything that touches the game world: click-to-move, facing, pickup, and the list of
-// nearby things that can get a label. Runs on the main thread.
+// Everything that touches the game world: click-to-move, facing, using things, and the list
+// of nearby things that get an outline, a label or a click. Runs on the main thread.
 namespace Game
 {
 	enum class Kind : std::uint8_t
 	{
-		kItem,       // loose item: always labelled (per Labels.Mode)
-		kContainer,  // labelled only while hovered
+		kItem,       // loose item that passed the loot filter: label + outline
+		kContainer,
 		kCorpse,
-		kNpc
+		kNpc,        // living, not hostile
+		kEnemy,
+		kDoor,
+		kPlayer      // outline only
 	};
 
 	struct Target
 	{
-		RE::ObjectRefHandle handle;
-		std::string         text;
-		RE::NiPoint3        pos;    // where the label is anchored
-		std::uint32_t       color;  // 0xAABBGGRR
-		Kind                kind;
+		RE::ObjectRefHandle       handle;
+		std::string               text;                  // items only: the label
+		RE::NiPoint3              pos;                   // label anchor
+		std::vector<RE::NiPoint3> points;                // outermost points; on screen their outline is the outline drawn and the click area
+		float                     pad{ 3.0f };           // how far outside those points the outline sits (Skyrim units)
+		std::uint32_t             color{ 0xFFFFFFFF };   // 0xAABBGGRR
+		Kind                      kind{ Kind::kItem };
 	};
 
 	// World point -> screen position in 0..1 (x right, y down). False if behind the camera.
@@ -50,7 +55,8 @@ namespace State
 	inline std::atomic<bool> labelKeyHeld{ false };
 	inline std::atomic<int>  moveKeysHeld{ 0 };  // WASD keys currently down
 
-	inline std::mutex                lock;     // guards the two below
-	inline std::vector<Game::Target> targets;  // written by Game, read by the HUD
-	inline RE::ObjectRefHandle       hovered;  // written by the HUD, read by Game
+	inline std::mutex                                      lock;     // guards the three below
+	inline std::shared_ptr<const std::vector<Game::Target>> targets;  // written by Game every frame, read by the HUD
+	inline RE::ObjectRefHandle                             hovered;  // written by the HUD, read by Game
+	inline Game::Kind                                      hoveredKind{ Game::Kind::kItem };
 }
