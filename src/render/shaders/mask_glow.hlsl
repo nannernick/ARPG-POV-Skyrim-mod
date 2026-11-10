@@ -64,7 +64,7 @@ float4 ps_glow_vertical(PS_IN ps_in) : SV_Target
         pixel.x < 0 || pixel.x >= g_width || pixel.y < 0 || pixel.y >= g_height || g_object_id == 0)
         return 0.0f;
 
-    uint const here = g_mask.Load(int3(pixel, 0));
+    const uint here = g_mask.Load(int3(pixel, 0));
     if (here == g_object_id || here == OCCLUDER_ID)
         return 0.0f;
 
