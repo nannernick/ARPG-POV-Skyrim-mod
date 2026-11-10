@@ -120,6 +120,24 @@ namespace
 
 namespace Settings
 {
+	bool ApplyCameraPreset(std::string_view a_name)
+	{
+		for (const auto& preset : CameraPresets) {
+			if (Lower(std::string(a_name)) == Lower(preset.name)) {
+				CameraPreset = preset.name;
+				LockPitch = true;
+				Pitch = preset.pitch;
+				CameraFov = preset.fov;
+				CameraDistance = preset.distance;
+				CameraOffsetX = 0.0f;
+				CameraOffsetZ = 0.0f;
+				ManageCamera = true;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	void Load()
 	{
 		std::vector<std::pair<std::string, std::string>> gameSettings;
@@ -141,6 +159,11 @@ namespace Settings
 		CameraOffsetX = GetFloat(ini, "Camera.OffsetX", CameraOffsetX, -300.0f, 300.0f);
 		CameraOffsetZ = GetFloat(ini, "Camera.OffsetZ", CameraOffsetZ, -300.0f, 300.0f);
 		WheelZoom = GetBool(ini, "Camera.WheelZoom", WheelZoom);
+		// A named preset overrides the pitch, distance and field of view lines above.
+		CameraPreset = "Custom";
+		if (const auto it = ini.find("Camera.Preset"); it != ini.end() && !ApplyCameraPreset(it->second) && Lower(it->second) != "custom") {
+			logs::warn("settings: Camera.Preset = '{}' is not a known preset, using the values in the INI", it->second);
+		}
 		PitchStep = GetFloat(ini, "Camera.PitchStep", PitchStep, 0.5f, 45.0f);
 		CameraToggleKey = GetKey(ini, "Camera.ToggleKey", CameraToggleKey);
 		PitchUpKey = GetKey(ini, "Camera.PitchUpKey", PitchUpKey);
@@ -239,6 +262,7 @@ namespace Settings
 		LabelKey = GetCode(ini, "Labels.Key", LabelKey);
 		LabelRadius = GetFloat(ini, "Labels.Radius", LabelRadius, 200.0f, 10000.0f);
 		LabelMaxHeightDiff = GetFloat(ini, "Labels.MaxHeightDiff", LabelMaxHeightDiff, 50.0f, 10000.0f);
+		LabelMaxBelow = GetFloat(ini, "Labels.MaxBelow", LabelMaxBelow, 0.0f, 10000.0f);
 		MaxLabels = GetInt(ini, "Labels.Max", MaxLabels, 1, 300);
 		LabelScale = GetFloat(ini, "Labels.Scale", LabelScale, 0.5f, 3.0f);
 		LabelMinValue = GetInt(ini, "Labels.MinValue", LabelMinValue, 0, 1000000);
@@ -248,11 +272,15 @@ namespace Settings
 		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
 		ShowClutter = GetBool(ini, "Labels.ShowClutter", ShowClutter);
 
+		HoldToAttack = GetBool(ini, "Combat.HoldToAttack", HoldToAttack);
+		PowerAttackKey = GetCode(ini, "Combat.PowerAttackKey", PowerAttackKey);
 		AutoAttack = GetBool(ini, "Combat.AutoAttack", AutoAttack);
+		AimAtCursor = GetBool(ini, "Combat.AimAtCursor", AimAtCursor);
 		Globes = GetBool(ini, "Globes.Enabled", Globes);
 		HideVanillaBars = GetBool(ini, "Globes.HideVanillaBars", HideVanillaBars);
 		GlobeSize = GetFloat(ini, "Globes.Size", GlobeSize, 0.5f, 2.0f);
 		GlobeNumbers = GetBool(ini, "Globes.Numbers", GlobeNumbers);
+		GlobeAnimate = GetBool(ini, "Globes.Animate", GlobeAnimate);
 		Outlines = GetBool(ini, "Outlines.Enabled", Outlines);
 		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
 		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
@@ -288,6 +316,9 @@ namespace Settings
 		out << "[Camera]\n"
 			<< "; Camera lock on at game start (ToggleKey flips it in game).\n"
 			<< std::format("Enabled = {}\n", b(CameraEnabled))
+			<< "; Preset = Custom uses the Pitch, Distance and Fov lines below. A game's name replaces them with that game's look:\n"
+			<< "; Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II.\n"
+			<< std::format("Preset = {}\n", CameraPreset)
 			<< "; Pitch = degrees looking down (30 = Path of Exile 2). Yaw only applies with LockYaw.\n"
 			<< std::format("LockPitch = {}\nPitch = {}\nLockYaw = {}\nYaw = {}\n", b(LockPitch), Pitch, b(LockYaw), Yaw)
 			<< "; Leave at 0 unless the camera looks up instead of down.\n"
@@ -321,9 +352,8 @@ namespace Settings
 			<< std::format("Enabled = {}\nInteriorOnly = {}\nMode = {}\n\n", b(CutawayEnabled), b(InteriorOnly), CutawayMode);
 
 		out << "[Cut]\n"
-			<< "; Cut height above the floor at your position, and how fast it rises behind you\n"
-			<< "; (1 = 45 deg, 0 = flat; clamped automatically to keep the floor on screen). Slope only applies to the\n"
-			<< "; Automatic style: Diablo style always cuts flat.\n"
+			<< "; Cut height above the floor. Slope applies to the Automatic style only: the cut is at Height at the bottom of the\n"
+			<< "; screen and rises this fast away from the camera (0 = flat), so walls are never cut lower than in Diablo style.\n"
 			<< std::format("Height = {}\nSlope = {}\n", CutHeight, CutSlope)
 			<< "; 1 = every mesh uses the cut projection so depth stays consistent.\n"
 			<< std::format("AllGeometry = {}\nRadius = {}\n", b(CutAllGeometry), CutRadius)
@@ -332,7 +362,8 @@ namespace Settings
 			<< std::format("ReanchorDistance = {}\nReanchorDelay = {}\n", ReanchorDistance, ReanchorDelay)
 			<< "; Every height change eases in over ~HeightSmoothing seconds, capped at MaxHeightSpeed.\n"
 			<< std::format("HeightSmoothing = {}\nMaxHeightSpeed = {}\n", HeightSmoothing, MaxHeightSpeed)
-			<< "; Style: 0 = always cut (Diablo look), 1 = automatic, cut only when something blocks the view (experimental).\n"
+			<< "; Style: 0 = Diablo style, always a flat cut at Height. 1 = Automatic (experimental): never lower than that, sloping up\n"
+			<< "; away from the camera, and rising (up to LiftMax) so walls and ceilings show when nothing is in the way.\n"
 			<< "; StyleKey switches in game (0x43 = F9).\n"
 			<< std::format("AutoLift = {}\nStyleKey = {:#x}\nClearDelay = {}\nLiftMax = {}\n\n", b(AutoLift), StyleKey, ClearDelay, LiftMax);
 
@@ -395,6 +426,8 @@ namespace Settings
 		out << std::format("Mode = {}\nKey = {:#x}\n", LabelMode, LabelKey);
 		out << "; How far away items get a label, and how far above/below you (keeps other floors out).\n";
 		out << std::format("Radius = {}\nMaxHeightDiff = {}\n", LabelRadius, LabelMaxHeightDiff);
+		out << "; Items lower than MaxBelow under your feet get no label or click (floors below, hidden merchant chest rooms).\n";
+		out << std::format("MaxBelow = {}\n", LabelMaxBelow);
 		out << "; Most labels on screen, text size, and a loot filter: hide items worth less than MinValue.\n";
 		out << std::format("Max = {}\nScale = {}\nMinValue = {}\n", MaxLabels, LabelScale, LabelMinValue);
 		out << "; Stacks of at least StackCount read \"200x Gold\"; smaller stacks show the name only (2 = always show the count).\n";
@@ -405,13 +438,18 @@ namespace Settings
 			b(ShowClutter));
 
 		out << "[Combat]\n";
-		out << "; While locked on (True Directional Movement), pressing your attack button starts attacking by itself.\n";
-		out << "; Press it again to stop. Melee only.\n";
-		out << std::format("AutoAttack = {}\n\n", b(AutoAttack));
+		out << "; HoldToAttack = holding your attack button swings again and again (melee). Hold PowerAttackKey with it for a\n";
+		out << "; power attack, as in the base game (0x38 = Left Alt, 0 = no key).\n";
+		out << std::format("HoldToAttack = {}\nPowerAttackKey = {:#x}\n", b(HoldToAttack), PowerAttackKey);
+		out << "; AutoAttack = while locked on (True Directional Movement), one press of attack keeps attacking until you press again.\n";
+		out << std::format("AutoAttack = {}\n", b(AutoAttack));
+		out << "; AimAtCursor = spells and bows aim at the cursor (or the enemy under it) and not along the tilted camera.\n";
+		out << std::format("AimAtCursor = {}\n\n", b(AimAtCursor));
 
 		out << "[Globes]\n";
 		out << "; Life and mana globes (Path of Exile style), stamina as a bar on the life globe. HideVanillaBars hides the game's bars.\n";
-		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\n\n", b(Globes), b(HideVanillaBars), GlobeSize, b(GlobeNumbers));
+		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\nAnimate = {}\n\n", b(Globes), b(HideVanillaBars), GlobeSize,
+			b(GlobeNumbers), b(GlobeAnimate));
 
 		out << "[Outlines]\n";
 		out << "; True outlines around the model: red = enemies, green = NPCs, white = you, items = their label colour.\n";

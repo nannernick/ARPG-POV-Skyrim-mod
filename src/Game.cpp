@@ -19,6 +19,7 @@ namespace Game
 		Primary             g_primary = Primary::kNone;
 		Primary             g_lastMode = Primary::kNone;  // what the move button's current press is doing
 		bool                g_auto = false;         // auto-attack is running
+		bool                g_holdAttack = false;   // the attack button is held: keep swinging
 		bool                g_autoSwallow = false;  // the attack press that switched it is hidden from the game
 		float               g_autoTimer = 0.0f;
 		bool                g_primaryHeld = false;
@@ -30,6 +31,13 @@ namespace Game
 		float               g_faceX = 0.0f;
 		float               g_faceY = 1.0f;
 		float               g_scanTimer = 0.0f;
+		// Arriving through a door puts you right next to its other side, where one click would send
+		// you straight back. That door can't be clicked until you've walked away from it.
+		RE::FormID          g_arrivalDoor = 0;
+		bool                g_arrived = false;  // just arrived: the next scan picks the nearest door
+		RE::NiPoint3        g_lastPos{};
+		RE::TESObjectCELL*  g_lastCell = nullptr;
+		constexpr float     kArrivalDoorRange = 350.0f;
 		float               g_stuckTimer = 0.0f;
 		RE::NiPoint3        g_stuckPos;
 
@@ -582,6 +590,15 @@ namespace Game
 
 		constexpr std::size_t kMaxItems = 400;
 
+		// Placeholder items the game hides out of sight (merchant chests and the like).
+		bool IsDeveloperName(std::string_view a_name)
+		{
+			std::string lower(a_name);
+			std::ranges::transform(lower, lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+			return lower.find("do not delete") != std::string::npos || lower.find("donotdelete") != std::string::npos ||
+			       lower.find("dummy") != std::string::npos;
+		}
+
 		void Scan(RE::PlayerCharacter* a_player)
 		{
 			auto* tes = RE::TES::GetSingleton();
@@ -592,6 +609,15 @@ namespace Game
 			const auto* cell = a_player->GetParentCell();
 			const bool  interior = cell && cell->IsInteriorCell();
 			const float radius = std::max(Settings::LabelRadius, Settings::OutlineRadius);  // actors, doors and containers; items stop at LabelRadius
+
+			// A load or a door: the cell changed, or you moved further in one scan than you could walk.
+			if (cell != g_lastCell || origin.GetDistance(g_lastPos) > 600.0f) {
+				g_arrived = true;
+				g_arrivalDoor = 0;
+			}
+			g_lastCell = const_cast<RE::TESObjectCELL*>(cell);
+			g_lastPos = origin;
+			float arrivalDistance = kArrivalDoorRange;
 
 			struct Item
 			{
@@ -646,6 +672,10 @@ namespace Game
 				if (heightDiff > Settings::LabelMaxHeightDiff) {
 					return next;
 				}
+				// Things below your feet are on a lower floor, or in a hidden merchant chest room.
+				if (target.above < -Settings::LabelMaxBelow) {
+					return next;
+				}
 				target.pos = pos;
 				const auto type = base->GetFormType();
 				if (type == RE::FormType::Container) {
@@ -655,6 +685,17 @@ namespace Game
 					target.kind = Kind::kContainer;
 					target.color = kGold;
 				} else if (type == RE::FormType::Door) {
+					if (g_arrived && target.distance < kArrivalDoorRange &&
+						(!g_arrivalDoor || target.distance < arrivalDistance)) {
+						g_arrivalDoor = target.formID;
+						arrivalDistance = target.distance;
+					}
+					if (target.formID == g_arrivalDoor) {
+						if (target.distance < kArrivalDoorRange) {
+							return next;
+						}
+						g_arrivalDoor = 0;  // walked away from it: clickable again
+					}
 					target.kind = Kind::kDoor;
 					target.color = kWhite;
 				} else {
@@ -664,7 +705,7 @@ namespace Game
 						return next;
 					}
 					const char* name = a_ref->GetDisplayFullName();
-					if (!name || !*name) {
+					if (!name || !*name || IsDeveloperName(name)) {
 						return next;
 					}
 					target.kind = Kind::kItem;
@@ -686,6 +727,8 @@ namespace Game
 				}
 				return next;
 			});
+
+			g_arrived = false;
 
 			Target self;
 			self.handle = a_player->GetHandle();
@@ -756,11 +799,15 @@ namespace Game
 		// While it's on and the lock holds, start a new swing whenever the last one has finished.
 		void AutoAttack(RE::PlayerCharacter* a_player, float a_delta)
 		{
-			if (!g_auto) {
+			if (g_auto && (!Settings::AutoAttack || !Camera::IsTargetLocked())) {
+				StopAutoAttack("Auto-attack: OFF");
+			}
+			if (!g_auto && !g_holdAttack) {
 				return;
 			}
-			if (!Settings::AutoAttack || !Camera::IsTargetLocked() || a_player->IsDead() || !CanAutoAttack(a_player)) {
+			if (a_player->IsDead() || !CanAutoAttack(a_player)) {
 				StopAutoAttack("Auto-attack: OFF");
+				g_holdAttack = false;
 				return;
 			}
 			g_autoTimer -= a_delta;
@@ -779,12 +826,63 @@ namespace Game
 			}
 		}
 
+		// Spells and arrows leave along the player's own pitch, which the camera lock tilts at the
+		// ground. While casting or drawing, work out the pitch to the enemy under the cursor, or to
+		// chest height above the ground under it; the camera hook applies it without moving the view.
+		void UpdateAim(RE::PlayerCharacter* a_player)
+		{
+			bool aiming = false;
+			if (Settings::AimAtCursor && State::gameplay.load()) {
+				const auto attack = a_player->AsActorState()->GetAttackState();
+				aiming = attack >= RE::ATTACK_STATE_ENUM::kBowDraw && attack <= RE::ATTACK_STATE_ENUM::kBowFollowThrough;
+				for (const auto source : { RE::MagicSystem::CastingSource::kLeftHand, RE::MagicSystem::CastingSource::kRightHand }) {
+					if (const auto* caster = a_player->GetMagicCaster(source); caster && caster->state.get() != RE::MagicCaster::State::kNone) {
+						aiming = true;
+					}
+				}
+			}
+			if (!aiming) {
+				State::aiming.store(false);
+				return;
+			}
+			const auto   feet = a_player->GetPosition();
+			RE::NiPoint3 from{ feet.x, feet.y, feet.z + std::max(a_player->GetHeight(), 60.0f) * 0.8f };
+			RE::NiPoint3 to{};
+			bool         found = false;
+
+			RE::ObjectRefHandle hovered;
+			Kind                kind = Kind::kItem;
+			if (Hovered(hovered, kind) && (kind == Kind::kEnemy || kind == Kind::kNpc)) {
+				if (const auto ref = hovered.get()) {
+					to = ref->GetPosition();
+					to.z += std::max(ref->GetHeight(), 40.0f) * 0.6f;
+					found = true;
+				}
+			}
+			if (!found && CursorGround(a_player, to)) {
+				to.z += 60.0f;  // chest height, not the floor
+				found = true;
+			}
+			float pitch = 0.0f;  // nothing to aim at: level
+			if (found) {
+				const float flat = std::hypot(to.x - from.x, to.y - from.y);
+				if (flat > 60.0f) {
+					pitch = std::clamp(std::atan2(from.z - to.z, flat), -1.0f, 1.0f);
+				}
+			}
+			State::aimPitch.store(pitch);
+			State::aiming.store(true);
+		}
+
 		void Tick(RE::PlayerCharacter* a_player, float a_delta)
 		{
 			RefreshGameplay();
 			Camera::OnFrame();
+			UpdateAim(a_player);
 			if (State::gameplay.load()) {
 				AutoAttack(a_player, a_delta);
+			} else {
+				g_holdAttack = false;
 			}
 			if (!State::gameplay.load()) {
 				Halt();
@@ -1032,6 +1130,7 @@ namespace Game
 		g_primary = Primary::kNone;
 		g_lastMode = Primary::kNone;
 		g_auto = false;
+		g_holdAttack = false;
 		g_autoSwallow = false;
 		g_primaryHeld = false;
 		g_faceTime = 0.0f;
@@ -1128,6 +1227,27 @@ namespace Game
 				return false;
 			}
 			return true;
+		}
+
+		// Hold to attack: the press reaches the game (the first swing), the hold does not (no power
+		// attack), and while it's held Tick starts the next swing as each one ends. With the power
+		// attack key down the game gets everything, so holding is a power attack as usual.
+		if (Settings::HoldToAttack && a_event->QUserEvent() == events->rightAttack && !g_auto && !g_autoSwallow &&
+			!(Settings::AutoAttack && Camera::IsTargetLocked())) {
+			if (a_event->IsUp()) {
+				g_holdAttack = false;
+				return false;
+			}
+			if (State::gameplay.load() && !State::powerAttackHeld.load() && CanAutoAttack(player)) {
+				if (a_event->IsDown()) {
+					g_holdAttack = true;
+					g_autoTimer = 0.3f;  // the game starts the first swing itself
+					return false;
+				}
+				return g_holdAttack;  // held
+			}
+			g_holdAttack = false;
+			return false;
 		}
 
 		// The attack button (right hand), on any other button: while locked on, a press starts

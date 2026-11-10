@@ -14,7 +14,6 @@ namespace Cut
 		std::atomic<float>         g_lastSlope{ 0.0f };
 		std::atomic<float>         g_allowedSlope{ -1.0f };  // floor-safe slope from the live camera, for the main thread
 		std::atomic<float>         g_displaySlope{ -1.0f };  // eased/held slope from the main thread; < 0 = not set
-		constexpr float            kFloorMargin = 20.0f;  // keep the plane this far above the floor on screen
 		std::atomic<float>         g_playerX{ 0.0f };
 		std::atomic<float>         g_playerY{ 0.0f };
 		std::atomic<float>         g_camX{ 0.0f };
@@ -100,6 +99,11 @@ namespace Cut
 				const float ax = g_ax.load(std::memory_order_relaxed);
 				const float ay = g_ay.load(std::memory_order_relaxed);
 				float       slope = g_slope.load(std::memory_order_relaxed);
+				// A sloped cut hinges on the floor at the bottom edge of the screen: it is at the cut
+				// height there and rises away from the camera, so nothing on screen is ever cut lower
+				// than the flat (Diablo) cut. pivot = how far that hinge is from the player, toward the camera.
+				float pivot = 0.0f;
+				bool  hinged = false;
 				if (slope > 0.0f && std::abs(cam.projMat._22) > 1e-4f) {
 					// Bottom-centre screen ray: view dir (0, -1/P22, 1), to world via R^T.
 					const float vy = -1.0f / cam.projMat._22;
@@ -112,10 +116,13 @@ namespace Cut
 						const float fy = eye.y + t * dwy;
 						const float towardCam = -(ax * (fx - px) + ay * (fy - py));
 						if (towardCam > 1.0f) {
-							const float maxSlope = (cutZ - floorZ - kFloorMargin) / towardCam;
-							slope = std::clamp(maxSlope, 0.0f, slope);
+							pivot = towardCam;
+							hinged = true;
 						}
 					}
+				}
+				if (!hinged) {
+					slope = 0.0f;  // the bottom of the screen doesn't meet the floor (looking up): cut flat
 				}
 				// The floor-safe cap follows the live camera, which bobs when you jump. Report it,
 				// then never go above the eased value the main thread hands back.
@@ -127,7 +134,7 @@ namespace Cut
 				const float nx = slope * ax;
 				const float ny = slope * ay;
 				const float nz = -1.0f;
-				const float nd = cutZ - slope * (ax * px + ay * py);
+				const float nd = cutZ - slope * (ax * px + ay * py - pivot);
 				const float nLen = std::sqrt(nx * nx + ny * ny + nz * nz);
 
 				// Selective mode: only meshes that cross the cut, in range, not characters.

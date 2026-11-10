@@ -51,8 +51,35 @@ namespace Menu
 			}
 		}
 
+		void ApplyCamera()
+		{
+			RunOnMainThread([] { Camera::ApplyCameraSettings(); });
+		}
+
 		void __stdcall RenderCamera()
 		{
+			SeparatorText("Preset");
+			int current = 0;  // 0 = Custom
+			std::vector<const char*> names{ "Custom" };
+			for (int i = 0; i < static_cast<int>(std::size(Settings::CameraPresets)); ++i) {
+				names.push_back(Settings::CameraPresets[i].name);
+				if (Settings::CameraPreset == Settings::CameraPresets[i].name) {
+					current = i + 1;
+				}
+			}
+			if (Combo("Look", &current, names.data(), static_cast<int>(names.size()))) {
+				if (current == 0) {
+					Settings::CameraPreset = "Custom";
+				} else {
+					Settings::ApplyCameraPreset(names[current]);
+					ApplyCamera();
+				}
+			}
+			Hint("Sets pitch, field of view and distance to imitate a game. Changing any of them yourself switches this to Custom.");
+			if (current > 0) {
+				TextDisabled("%s", Settings::CameraPresets[current - 1].note);
+			}
+
 			SeparatorText("Camera lock");
 			bool active = Camera::IsActive();
 			if (Checkbox("Camera lock on", &active)) {
@@ -61,8 +88,9 @@ namespace Menu
 			}
 			Hint("Also toggled with the camera key (F10 by default).");
 
-			Checkbox("Lock pitch", &Settings::LockPitch);
-			SliderFloat("Pitch (degrees down)", &Settings::Pitch, 5.0f, 85.0f, "%.0f");
+			bool custom = false;  // a preset value was edited by hand
+			custom |= Checkbox("Lock pitch", &Settings::LockPitch);
+			custom |= SliderFloat("Pitch (degrees down)", &Settings::Pitch, 5.0f, 85.0f, "%.0f");
 			Hint("30 = Path of Exile 2 / Diablo II, 50 = Path of Exile.");
 			Checkbox("Lock yaw", &Settings::LockYaw);
 			BeginDisabled(!Settings::LockYaw);
@@ -70,22 +98,25 @@ namespace Menu
 			EndDisabled();
 			SliderFloat("Pitch key step", &Settings::PitchStep, 1.0f, 15.0f, "%.0f");
 
-			SeparatorText("Distance and view (replaces 3PCO)");
+			SeparatorText("Distance and view");
 			bool managed = false;
 			managed |= Checkbox("Manage the camera", &Settings::ManageCamera);
-			Hint("Sets the distance, offsets, zoom and field of view below. Turn off to leave them to the game or another camera mod.");
+			Hint("Sets the distance, offsets, zoom and field of view below (what 3PCO used to do). Turn off to leave them to the game or another camera mod.");
 			BeginDisabled(!Settings::ManageCamera);
-			managed |= SliderFloat("Distance", &Settings::CameraDistance, 100.0f, 2000.0f, "%.0f");
-			managed |= SliderFloat("Field of view", &Settings::CameraFov, 30.0f, 120.0f, "%.0f");
-			managed |= SliderFloat("Sideways offset", &Settings::CameraOffsetX, -300.0f, 300.0f, "%.0f");
-			managed |= SliderFloat("Height offset", &Settings::CameraOffsetZ, -300.0f, 300.0f, "%.0f");
+			bool view = false;
+			view |= SliderFloat("Distance", &Settings::CameraDistance, 100.0f, 2000.0f, "%.0f");
+			view |= SliderFloat("Field of view", &Settings::CameraFov, 30.0f, 120.0f, "%.0f");
+			Hint("A lower field of view from further away looks flatter, like most ARPGs.");
+			view |= SliderFloat("Sideways offset", &Settings::CameraOffsetX, -300.0f, 300.0f, "%.0f");
+			view |= SliderFloat("Height offset", &Settings::CameraOffsetZ, -300.0f, 300.0f, "%.0f");
 			managed |= Checkbox("Mouse wheel zooms", &Settings::WheelZoom);
 			Hint("Off: the wheel does nothing and the distance stays fixed. Use the change-view key for first person.");
 			EndDisabled();
-			if (managed) {
-				if (auto* tasks = SKSE::GetTaskInterface()) {
-					tasks->AddTask([] { Camera::ApplyCameraSettings(); });
-				}
+			if (custom || view) {
+				Settings::CameraPreset = "Custom";
+			}
+			if (managed || view) {
+				ApplyCamera();
 			}
 
 			SeparatorText("Compatibility");
@@ -110,16 +141,18 @@ namespace Menu
 				Occlusion::SetAutoLift(style == 0);
 				Settings::AutoLift = style == 0;
 			}
-			Hint("Also switched with the style key (F9 by default).");
+			Hint("Diablo style: everything above Height is always cut, flat.\n"
+				 "Automatic: never cut lower than that, sloping up away from the camera, and rising further when nothing blocks the view of you.\n"
+				 "Also switched with the style key (F9 by default).");
 
 			SeparatorText("Cut shape");
 			SliderFloat("Height", &Settings::CutHeight, 50.0f, 800.0f, "%.0f");
 			Hint("How far above the floor walls are cut (a human is ~128).");
 			BeginDisabled(!Occlusion::GetAutoLift());
-			SliderFloat("Slope behind you", &Settings::CutSlope, 0.0f, 3.0f, "%.2f");
+			SliderFloat("Slope away from the camera", &Settings::CutSlope, 0.0f, 2.0f, "%.2f");
 			EndDisabled();
-			Hint("Automatic style only. Diablo style always uses a flat cut.");
-			Hint("How fast the cut rises away from the camera, so far walls stay. 0 = flat.");
+			Hint("Automatic style only. The cut is at Height at the bottom of the screen and rises this fast further away, so far walls stay.\n"
+				 "Nothing on screen is cut lower than in Diablo style. Higher values leave taller walls near you. 0 = flat.");
 
 			SeparatorText("Height changes");
 			SliderFloat("Smoothing (s)", &Settings::HeightSmoothing, 0.0f, 3.0f, "%.2f");
@@ -144,6 +177,124 @@ namespace Menu
 			Checkbox("All geometry (consistent depth)", &Settings::CutAllGeometry);
 			Hint("Leave on. Off only cuts meshes that cross the plane, which hides props in many rooms.");
 			Checkbox("Cutaway debug log", &Settings::CutawayDebugLog);
+
+			Footer();
+		}
+
+		void __stdcall RenderControls()
+		{
+			SeparatorText("Point and click");
+			Checkbox("Enabled", &Settings::PointClickEnabled);
+			Hint("Also toggled with the toggle key (F7 by default). Off = normal WASD and mouse look.");
+			Checkbox("Mouse moves the cursor, not the camera", &Settings::BlockMouseLook);
+
+			SeparatorText("Cursor");
+			SliderFloat("Cursor speed", &Settings::Sensitivity, 0.1f, 5.0f, "%.2f");
+			SliderFloat("Cursor size", &Settings::CursorSize, 0.5f, 4.0f, "%.1f");
+			Checkbox("Ring behind the sword, bag and exclamation mark", &Settings::CursorRing);
+			Checkbox("Use this cursor in menus too", &Settings::MenuCursor);
+			Hint("Inventory, containers, barter and other menus (Grid Inventory included) show this cursor instead of the game's.");
+
+			SeparatorText("Movement");
+			Checkbox("Hold to keep moving", &Settings::HoldToMove);
+			SliderFloat("Stop distance", &Settings::ArriveRadius, 5.0f, 200.0f, "%.0f");
+			SliderFloat("Max click distance", &Settings::MaxDistance, 500.0f, 10000.0f, "%.0f");
+			const char* const modes[] = { "Auto", "True Directional Movement", "Turn the player (no TDM)" };
+			Combo("Movement mode", &Settings::MoveMode, modes, 3);
+
+			SeparatorText("Clicking things");
+			Checkbox("Clicking an enemy attacks it", &Settings::ClickEnemies);
+			Hint("Off: every click moves. Shift + click always attacks toward the cursor.");
+			Checkbox("Clicking things uses them", &Settings::ClickInteract);
+			Hint("Click an item to pick it up, a door to go through, an NPC to talk, a chest or corpse to loot.\nOff: only the pickup button (mouse 3) does.");
+			SliderFloat("Reach", &Settings::PickupRange, 50.0f, 500.0f, "%.0f");
+			Hint("Closer than this uses the thing at once. Further away, you walk there first.");
+			Checkbox("Containers can be clicked", &Settings::Containers);
+			Checkbox("Corpses and NPCs can be clicked", &Settings::Actors);
+
+			SeparatorText("Combat");
+			Checkbox("Hold attack to keep attacking", &Settings::HoldToAttack);
+			Hint("Holding your attack button swings again and again (melee). Hold the power attack key (Left Alt by default) with it for a power attack.");
+			Checkbox("Auto-attack while locked on", &Settings::AutoAttack);
+			Hint("While True Directional Movement's target lock is on, one press of attack keeps attacking until you press it again. Melee only.");
+			Checkbox("Spells and bows aim at the cursor", &Settings::AimAtCursor);
+			Hint("Off: they fire along the camera's tilt, which is into the ground.");
+
+			TextDisabled("Buttons and keys are set in the INI.");
+			Footer();
+		}
+
+		void __stdcall RenderOutlines()
+		{
+			SeparatorText("What gets an outline");
+			Checkbox("Outlines", &Settings::Outlines);
+			Hint("Off: only the thing under the cursor is outlined.");
+			Checkbox("Enemies (red)", &Settings::OutlineEnemies);
+			SameLine();
+			Checkbox("NPCs (green)", &Settings::OutlineNpcs);
+			Checkbox("Your character (white)", &Settings::OutlinePlayer);
+			SameLine();
+			Checkbox("Items", &Settings::OutlineItems);
+
+			SeparatorText("Glow");
+			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);
+			Hint("1 = a thin line. Higher widens the line and the glow around it.");
+			SliderFloat("Glow strength", &Settings::OutlineOpacity, 0.05f, 1.0f, "%.2f");
+			SliderFloat("Colour brightness", &Settings::OutlineBrightness, 0.1f, 1.0f, "%.2f");
+			Hint("Lower = darker, subtler colours. The thing under the cursor always glows at full strength.");
+			Checkbox("Fainter with distance", &Settings::OutlineFade);
+			Checkbox("Things behind you don't glow over you", &Settings::OutlineBehindPlayer);
+
+			SeparatorText("Distances");
+			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
+			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
+			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
+
+			Footer();
+		}
+
+		void __stdcall RenderLabels()
+		{
+			SeparatorText("Item labels");
+			const char* const labelModes[] = { "Only under the cursor", "Always", "While the label key is held" };
+			Combo("Show", &Settings::LabelMode, labelModes, 3);
+			SliderFloat("Label distance", &Settings::LabelRadius, 200.0f, 5000.0f, "%.0f");
+			SliderFloat("Text size", &Settings::LabelScale, 0.5f, 3.0f, "%.2f");
+			SliderInt("Most labels", &Settings::MaxLabels, 5, 200);
+			SliderInt("Show the count from", &Settings::StackCount, 2, 100);
+			Hint("Stacks at least this big read \"200x Gold\". Smaller stacks show the name only. 2 = always show the count.");
+
+			SeparatorText("Other floors");
+			SliderFloat("Nothing higher than", &Settings::OutlineMaxAbove, 0.0f, 500.0f, "%.0f");
+			Hint("Items, containers and corpses this far above your feet get no label or outline (a human is ~128 tall).");
+			SliderFloat("Nothing lower than", &Settings::LabelMaxBelow, 0.0f, 500.0f, "%.0f");
+			Hint("Items this far below your feet get no label and can't be clicked (floors below, hidden merchant chest rooms).");
+
+			SeparatorText("Loot filter");
+			SliderInt("Hide items worth less than", &Settings::LabelMinValue, 0, 500);
+			Hint("Gold is always shown.");
+			TextDisabled("Always shown: gear, potions, scrolls, spell tomes, keys, soul gems, gold, gems, ore.");
+			Checkbox("Food", &Settings::ShowFood);
+			SameLine();
+			Checkbox("Ingredients", &Settings::ShowIngredients);
+			SameLine();
+			Checkbox("Books", &Settings::ShowBooks);
+			SameLine();
+			Checkbox("Clutter", &Settings::ShowClutter);
+			Hint("Kettles, buckets, plates, torches and other junk.");
+
+			Footer();
+		}
+
+		void __stdcall RenderHud()
+		{
+			SeparatorText("Life and mana globes");
+			Checkbox("Show globes", &Settings::Globes);
+			Checkbox("Hide the game's bars", &Settings::HideVanillaBars);
+			SliderFloat("Globe size", &Settings::GlobeSize, 0.5f, 2.0f, "%.2f");
+			Checkbox("Health, mana and stamina numbers", &Settings::GlobeNumbers);
+			Checkbox("Moving liquid", &Settings::GlobeAnimate);
+			Hint("A wave on the surface and rising bubbles. Off: a still surface.");
 
 			Footer();
 		}
@@ -178,6 +329,10 @@ namespace Menu
 		SKSEMenuFramework::SetSection("ARPG POV");
 		SKSEMenuFramework::AddSectionItem("Camera", RenderCamera);
 		SKSEMenuFramework::AddSectionItem("Cutaway", RenderCutaway);
+		SKSEMenuFramework::AddSectionItem("Controls", RenderControls);
+		SKSEMenuFramework::AddSectionItem("Outlines", RenderOutlines);
+		SKSEMenuFramework::AddSectionItem("Labels and Loot", RenderLabels);
+		SKSEMenuFramework::AddSectionItem("HUD", RenderHud);
 		SKSEMenuFramework::AddSectionItem("Player", RenderPlayer);
 		logs::info("[menu] registered with SKSE Menu Framework");
 	}

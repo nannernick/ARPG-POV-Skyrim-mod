@@ -1,4 +1,5 @@
 #include "Camera.h"
+#include "Game.h"
 #include "Settings.h"
 
 namespace Camera
@@ -55,7 +56,24 @@ namespace Camera
 				if (Settings::InvertPitch) {
 					pitch = -pitch;
 				}
-				if (Settings::PitchMode == 1) {
+				// Casting or drawing a bow: the player aims at the cursor while the camera keeps its tilt.
+				// Camera tilt = player pitch - freeRotation.y (only while free rotation is on).
+				static bool s_aiming = false;
+				static bool s_freeBefore = false;
+				const bool  aiming = State::aiming.load() && Settings::PitchMode != 1;
+				if (aiming && !s_aiming) {
+					s_freeBefore = a_state->freeRotationEnabled;
+				} else if (!aiming && s_aiming && !Settings::LockYaw) {
+					a_state->freeRotationEnabled = s_freeBefore;
+				}
+				s_aiming = aiming;
+
+				if (aiming) {
+					const float aim = State::aimPitch.load();
+					a_state->freeRotationEnabled = true;
+					player->data.angle.x = aim;
+					a_state->freeRotation.y = aim - pitch;
+				} else if (Settings::PitchMode == 1) {
 					a_state->freeRotation.y = pitch;
 				} else {
 					player->data.angle.x = pitch;
@@ -265,6 +283,7 @@ namespace Camera
 	void AdjustPitch(float a_delta)
 	{
 		Settings::Pitch = std::clamp(Settings::Pitch + a_delta, 5.0f, 85.0f);
+		Settings::CameraPreset = "Custom";
 		Settings::Save();
 		static std::string msg;  // keep the text alive in case the HUD queues the pointer
 		msg = std::format("Camera pitch: {:.0f} deg", Settings::Pitch);

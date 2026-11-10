@@ -39,7 +39,9 @@ Run Pandora, then launch with `skse64_loader.exe`.
 - **Left click** an enemy: turn to it and attack. **Shift + left click** attacks toward the cursor without moving.
 - **Left click** an item or its label: pick it up. A door: go through it. An NPC: talk. A chest or corpse: loot it. If it's out of reach, you walk over first.
 - **Left click never triggers the game's own left-click action** while the cursor is live, whichever hand it's bound to. It must stay bound to an attack (left or right) for the plugin to see it.
-- **Auto-attack:** while True Directional Movement's target lock is on, press your attack button once to keep attacking; press it again to stop. Melee only.
+- **Hold attack** to keep attacking: one swing after another while your attack button is held (melee). Hold **Left Alt** with it for a power attack.
+- **Spells and bows** aim at the cursor, or at the enemy under it, not along the tilted camera.
+- **Auto-attack (optional, off by default):** while True Directional Movement's target lock is on, one press of attack keeps attacking until you press it again.
 - **First person:** the camera lock and the cursor switch off; the view is levelled once on entering.
 - **Middle mouse (mouse 3)** does the same as a left click on things, and never attacks or moves.
 - **WASD** still works and cancels a click-move.
@@ -74,7 +76,7 @@ To measure any game, screenshot a circle on the ground (an AoE ring) near the ce
 
 ## Camera splitter
 Indoors, everything above a cut line is removed by the GPU. Walls end cleanly and roofs vanish, while floors, furniture and characters stay. The background goes black.
-- **F9:** *Diablo style* (always cut, the default) or *Automatic* (experimental: split only when walls block the view)
+- **F9:** *Diablo style* (everything above the cut height is always removed, the default) or *Automatic* (experimental: never cut lower than Diablo style, sloping up away from the camera, and rising further when nothing blocks the view of you)
 - The cut stays at one height per floor. Jumps don't move it, and changes ease in.
 - The cut rises behind you, so far walls stay full height.
 - Idea from machinegod's *Skyrim Camera Disocclusion System*. This is a separate implementation.
@@ -114,6 +116,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Lock on at game start |
 | `LockPitch` / `Pitch` | 1 / 30 | Lock the angle, degrees looking down |
 | `LockYaw` / `Yaw` | 0 / 45 | Lock the compass direction (0 = north) |
+| `Preset` | Skyrim ARPG | Camera look by game: Custom, Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II. Sets pitch, FOV and distance; only the pitch of Diablo II, Path of Exile and Path of Exile 2 was measured, the rest are estimates |
 | `Manage` / `Distance` / `Fov` / `OffsetX` / `OffsetZ` / `WheelZoom` | 1 / 600 / 90 / 0 / 0 / 0 | Camera distance, field of view, shoulder offsets, mouse-wheel zoom (replaces 3PCO) |
 | `FixInteriorRooms` | 1 | Draw your room when the camera is above the ceiling |
 | `PauseOnTargetLock` | 0 | Let TDM hold the camera while locked on |
@@ -142,7 +145,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Splitter on/off |
 | `InteriorOnly` | 1 | Only split indoors |
 | `Height` | 220 | Cut height above the floor (a human is ~128) |
-| `Slope` | 0 | Automatic style only: how fast the cut rises behind you (0 = flat). Diablo style is always flat |
+| `Slope` | 0.3 | Automatic style only: the cut is at `Height` at the bottom of the screen and rises this fast away from the camera. Diablo style is always flat |
 | `AutoLift` | 0 | Starting style: 0 = Diablo style, 1 = Automatic (experimental) |
 | `StyleKey` | 0x43 (F9) | Switch style |
 | `ClearDelay` / `LiftMax` | 0.75 / 600 | Automatic: seconds of clear view before it lifts, how far it lifts |
@@ -183,9 +186,12 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
-| `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` | 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, current/max above each globe |
+| `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` / `Animate` | 1 / 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, numbers, moving liquid |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Player` / `Items` | 1 / 1 / 0 / 1 / 0 | Outlines on, and per group (hovered things always glow) |
-| `[Combat] AutoAttack` | 1 | While locked on, the attack button starts and stops auto-attack |
+| `[Combat] HoldToAttack` / `PowerAttackKey` | 1 / 0x38 | Holding attack keeps swinging; with the key (Left Alt) held it's a power attack |
+| `[Combat] AutoAttack` | 0 | While locked on, one press of attack starts auto-attack and the next stops it |
+| `[Combat] AimAtCursor` | 1 | Spells and bows aim at the cursor or the hovered enemy |
+| `[Labels] MaxBelow` | 60 | Items lower than this under your feet get no label and can't be clicked |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |
 | `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline or label |

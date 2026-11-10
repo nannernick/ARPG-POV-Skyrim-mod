@@ -57,6 +57,9 @@ namespace State
 
 	inline std::atomic<bool> rotateHeld{ false };
 	inline std::atomic<bool> attackInPlaceHeld{ false };
+	inline std::atomic<bool> powerAttackHeld{ false };   // PowerAttackKey is down: holding attack is a power attack, as in the base game
+	inline std::atomic<bool>  aiming{ false };           // casting or drawing a bow: the player's aim follows aimPitch, not the camera tilt
+	inline std::atomic<float> aimPitch{ 0.0f };          // radians, positive = down
 	inline std::atomic<bool> labelKeyHeld{ false };
 	inline std::atomic<int>  moveKeysHeld{ 0 };  // WASD keys currently down
 

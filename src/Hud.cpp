@@ -19,7 +19,6 @@ namespace Hud
 		using namespace ImGuiMCP;
 
 		bool        g_available = false;
-		std::string g_status;
 
 		// Something on screen: its outline (also its click area).
 		struct Shape
@@ -375,116 +374,6 @@ namespace Hud
 			SetHovered(hovering ? shapes[hovered].target->handle : RE::ObjectRefHandle{}, kind);
 			DrawCursor(list, cx, cy, hovering, kind);
 		}
-
-		void Hint(const char* a_text)
-		{
-			if (IsItemHovered()) {
-				SetTooltip("%s", a_text);
-			}
-		}
-
-		void __stdcall RenderSettings()
-		{
-			SeparatorText("Point and click");
-			Checkbox("Enabled", &Settings::PointClickEnabled);
-			Hint("Also toggled with the toggle key (F7 by default). Off = normal WASD and mouse look.");
-			SliderFloat("Cursor speed", &Settings::Sensitivity, 0.1f, 5.0f, "%.2f");
-			SliderFloat("Cursor size", &Settings::CursorSize, 0.5f, 4.0f, "%.1f");
-			Checkbox("Ring behind the sword, bag and exclamation mark", &Settings::CursorRing);
-			Checkbox("Use this cursor in menus too", &Settings::MenuCursor);
-			Hint("Inventory, containers, barter and other menus (Grid Inventory included) show this cursor instead of the game's.");
-			Checkbox("Mouse moves the cursor, not the camera", &Settings::BlockMouseLook);
-
-			SeparatorText("Life and mana globes");
-			Checkbox("Show globes", &Settings::Globes);
-			Checkbox("Hide the game's bars", &Settings::HideVanillaBars);
-			SliderFloat("Globe size", &Settings::GlobeSize, 0.5f, 2.0f, "%.2f");
-			Checkbox("Numbers above the globes", &Settings::GlobeNumbers);
-
-			SeparatorText("Combat");
-			Checkbox("Auto-attack while locked on", &Settings::AutoAttack);
-			Hint("While True Directional Movement's target lock is on, press your attack button once to keep attacking. Press it again to stop. Melee only.");
-
-			SeparatorText("Movement");
-			Checkbox("Hold to keep moving", &Settings::HoldToMove);
-			SliderFloat("Stop distance", &Settings::ArriveRadius, 5.0f, 200.0f, "%.0f");
-			SliderFloat("Max click distance", &Settings::MaxDistance, 500.0f, 10000.0f, "%.0f");
-			Checkbox("Clicking an enemy attacks it", &Settings::ClickEnemies);
-			Hint("Off: every click moves. Shift + click always attacks toward the cursor.");
-			Checkbox("Clicking things uses them", &Settings::ClickInteract);
-			Hint("Click an item to pick it up, a door to go through, an NPC to talk, a chest or corpse to loot.\nOff: only the pickup button (mouse 3) does.");
-			const char* const modes[] = { "Auto", "True Directional Movement", "Turn the player (no TDM)" };
-			Combo("Movement mode", &Settings::MoveMode, modes, 3);
-
-			SeparatorText("Using things");
-			SliderFloat("Reach", &Settings::PickupRange, 50.0f, 500.0f, "%.0f");
-			Hint("Closer than this uses the thing at once. Further away, you walk there first.");
-			Checkbox("Containers can be clicked", &Settings::Containers);
-			Checkbox("Corpses and NPCs can be clicked", &Settings::Actors);
-
-			SeparatorText("Outlines");
-			Checkbox("Outlines", &Settings::Outlines);
-			Hint("Off: only the thing under the cursor is outlined.");
-			Checkbox("Enemies (red)", &Settings::OutlineEnemies);
-			SameLine();
-			Checkbox("NPCs (green)", &Settings::OutlineNpcs);
-			Checkbox("Your character (white)", &Settings::OutlinePlayer);
-			SameLine();
-			Checkbox("Items", &Settings::OutlineItems);
-			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);
-			Hint("1 = a thin line. Higher widens the line and the glow around it.");
-			SliderFloat("Glow strength", &Settings::OutlineOpacity, 0.05f, 1.0f, "%.2f");
-			SliderFloat("Colour brightness", &Settings::OutlineBrightness, 0.1f, 1.0f, "%.2f");
-			Hint("Lower = darker, subtler colours. The thing under the cursor always glows at full strength.");
-			Checkbox("Fainter with distance", &Settings::OutlineFade);
-			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
-			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
-			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
-			SliderFloat("No loot outlines or labels higher than", &Settings::OutlineMaxAbove, 0.0f, 500.0f, "%.0f");
-			Hint("Items, containers and corpses this far above your feet get no outline or label (a human is ~128 tall).");
-			Checkbox("Things behind you don't glow over you", &Settings::OutlineBehindPlayer);
-
-			SeparatorText("Item labels");
-			const char* const labelModes[] = { "Only under the cursor", "Always", "While the label key is held" };
-			Combo("Show", &Settings::LabelMode, labelModes, 3);
-			SliderFloat("Label distance", &Settings::LabelRadius, 200.0f, 5000.0f, "%.0f");
-			SliderFloat("Text size", &Settings::LabelScale, 0.5f, 3.0f, "%.2f");
-			SliderInt("Most labels", &Settings::MaxLabels, 5, 200);
-			SliderInt("Hide items worth less than", &Settings::LabelMinValue, 0, 500);
-			Hint("Gold is always shown.");
-			SliderInt("Show the count from", &Settings::StackCount, 2, 100);
-			Hint("Stacks at least this big read \"200x Gold\". Smaller stacks show the name only. 2 = always show the count.");
-
-			SeparatorText("Loot filter");
-			TextDisabled("Always shown: gear, potions, scrolls, spell tomes, keys, soul gems, gold, gems, ore.");
-			Checkbox("Food", &Settings::ShowFood);
-			SameLine();
-			Checkbox("Ingredients", &Settings::ShowIngredients);
-			SameLine();
-			Checkbox("Books", &Settings::ShowBooks);
-			SameLine();
-			Checkbox("Clutter", &Settings::ShowClutter);
-			Hint("Kettles, buckets, plates, torches and other junk.");
-
-			Spacing();
-			Separator();
-			if (Button("Save to INI")) {
-				g_status = Settings::Save() ? "Saved." : "Couldn't write the INI - see the log.";
-			}
-			Hint("Writes every setting to Data/SKSE/Plugins/ARPGPOV.ini.");
-			SameLine();
-			if (Button("Reload INI")) {
-				if (auto* tasks = SKSE::GetTaskInterface()) {
-					tasks->AddTask([] { Input::Reload(); });
-				}
-				g_status = "Reloaded from the INI.";
-			}
-			if (!g_status.empty()) {
-				SameLine();
-				TextDisabled("%s", g_status.c_str());
-			}
-			TextDisabled("Buttons and keys are set in the INI.");
-		}
 	}
 
 	void Register()
@@ -494,9 +383,7 @@ namespace Hud
 			return;
 		}
 		g_available = true;
-		SKSEMenuFramework::SetSection("ARPG POV");
-		SKSEMenuFramework::AddSectionItem("Point and Click", RenderSettings);
-		SKSEMenuFramework::AddHudElement(Render);
+		SKSEMenuFramework::AddHudElement(Render);  // the settings pages are in Menu.cpp
 		logs::info("[hud] registered with SKSE Menu Framework");
 	}
 

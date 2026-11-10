@@ -54,6 +54,16 @@ namespace Globes
 			return IM_COL32(a_r, a_g, a_b, a_a);
 		}
 
+		ImU32 Mix(ImU32 a_from, ImU32 a_to, float a_t)
+		{
+			const auto channel = [&](int a_shift) {
+				const float from = static_cast<float>((a_from >> a_shift) & 0xFF);
+				const float to = static_cast<float>((a_to >> a_shift) & 0xFF);
+				return static_cast<ImU32>(from + (to - from) * a_t + 0.5f) << a_shift;
+			};
+			return channel(0) | channel(8) | channel(16) | channel(24);
+		}
+
 		// The part of a circle below a horizontal line, as a convex polygon.
 		void FillBelow(ImDrawList* a_list, ImVec2 a_centre, float a_radius, float a_level, ImU32 a_color)
 		{
@@ -95,44 +105,129 @@ namespace Globes
 		struct Colours
 		{
 			ImU32 deep;     // bottom of the liquid
-			ImU32 bright;   // its lit middle
+			ImU32 mid;      // most of its body
+			ImU32 bright;   // its lit core
 			ImU32 surface;  // the line on top
 			ImU32 trail;    // just-lost amount, fading
 		};
 
-		// One globe: a dark glass ball in a metal rim, filled to a_fill (0..1).
-		void Globe(ImDrawList* a_list, ImFont* a_font, ImVec2 a_centre, float a_radius, float a_fill, float a_trail, const Colours& a_colours,
-			const Value& a_value, float a_scale, const char* a_name)
+		// The liquid: a dark body, a lit core, and a surface that rolls when a_time moves.
+		void Liquid(ImDrawList* a_list, ImVec2 a_centre, float a_radius, float a_fill, const Colours& a_colours, float a_time, float a_scale)
 		{
 			const float r = a_radius;
-			// Rim and empty glass.
-			ImDrawListManager::AddCircleFilled(a_list, a_centre, r + 7.0f * a_scale, Rgba(18, 14, 10, 235), 64);
-			ImDrawListManager::AddCircleFilled(a_list, a_centre, r, Rgba(12, 8, 8, 235), 64);
+			const float level = a_centre.y + r - 2.0f * r * a_fill;
+			const bool  wave = Settings::GlobeAnimate && a_fill > 0.02f && a_fill < 0.98f;
+			const float amp = wave ? 2.5f * a_scale : 0.0f;
+			const float flat = level + amp;  // everything below the lowest trough is one solid piece
 
-			// Recently lost, then the liquid: a darker body with a lit core.
-			const float top = a_centre.y + r - 2.0f * r * a_fill;
+			// Shading: a stack of shrinking discs, dark at the glass and brighter toward a light up and to the left.
+			constexpr int kLayers = 12;
+			for (int i = 0; i < kLayers; ++i) {
+				const float t = static_cast<float>(i) / static_cast<float>(kLayers - 1);
+				const ImU32 colour = t < 0.5f ? Mix(a_colours.deep, a_colours.mid, t * 2.0f) : Mix(a_colours.mid, a_colours.bright, t * 2.0f - 1.0f);
+				FillBelow(a_list, ImVec2{ a_centre.x - r * 0.20f * t, a_centre.y - r * 0.18f * t }, r * (1.0f - 0.68f * t), flat, colour);
+			}
+
+			if (a_fill <= 0.01f || a_fill >= 0.99f) {
+				return;
+			}
+			// The band between the troughs and the wave, as thin columns across the chord.
+			const float dy = flat - a_centre.y;
+			const float half = std::sqrt(std::max(r * r - dy * dy, 0.0f)) - 1.5f * a_scale;
+			if (half <= 2.0f) {
+				return;
+			}
+			constexpr int kColumns = 28;
+			ImVec2        top[kColumns + 1];
+			for (int i = 0; i <= kColumns; ++i) {
+				const float u = static_cast<float>(i) / static_cast<float>(kColumns);
+				const float x = a_centre.x - half + 2.0f * half * u;
+				const float edge = std::sin(u * kPi);  // the wave dies out at the glass
+				const float y = level + amp * edge * std::sin(u * 9.0f + a_time * 2.2f) + amp * 0.5f * edge * std::sin(u * 17.0f - a_time * 3.1f);
+				top[i] = ImVec2{ x, y };
+			}
+			if (wave) {
+				for (int i = 0; i < kColumns; ++i) {
+					ImDrawListManager::AddQuadFilled(a_list, top[i], top[i + 1], ImVec2{ top[i + 1].x, flat + 1.0f }, ImVec2{ top[i].x, flat + 1.0f },
+						a_colours.deep);
+				}
+			}
+			ImDrawListManager::AddPolyline(a_list, top, kColumns + 1, a_colours.surface, 0, 1.5f * a_scale);
+
+			// A few bubbles drifting up through the liquid.
+			if (Settings::GlobeAnimate && a_fill > 0.15f) {
+				for (int i = 0; i < 5; ++i) {
+					const float seed = static_cast<float>(i) * 1.7f + 0.4f;
+					const float phase = std::fmod(a_time * (0.10f + 0.03f * static_cast<float>(i)) + seed * 0.37f, 1.0f);
+					const float x = a_centre.x + std::sin(seed * 2.3f) * r * 0.55f + std::sin(a_time * 1.3f + seed) * 2.0f * a_scale;
+					const float y = a_centre.y + r * 0.85f - phase * (a_centre.y + r * 0.85f - level);
+					const float dx = x - a_centre.x;
+					const float dyb = y - a_centre.y;
+					if (y > level + 4.0f * a_scale && dx * dx + dyb * dyb < r * r * 0.72f) {
+						const int alpha = static_cast<int>(70.0f * std::sin(phase * kPi));
+						ImDrawListManager::AddCircle(a_list, ImVec2{ x, y }, (1.5f + 0.5f * static_cast<float>(i % 3)) * a_scale, Rgba(255, 255, 255, alpha), 12, 1.0f);
+					}
+				}
+			}
+		}
+
+		// The frame: a bracket under the globe, a heavy iron ring, and bronze studs around it.
+		void FrameBack(ImDrawList* a_list, ImVec2 a_centre, float a_radius, float a_scale)
+		{
+			const float r = a_radius;
+			const ImVec2 lo{ a_centre.x - r * 0.95f, a_centre.y + r * 0.50f };
+			const ImVec2 hi{ a_centre.x + r * 0.95f, a_centre.y + r + 16.0f * a_scale };
+			ImDrawListManager::AddRectFilled(a_list, lo, hi, Rgba(24, 21, 19, 245), 6.0f * a_scale, 0);
+			ImDrawListManager::AddLine(a_list, ImVec2{ lo.x + 6.0f * a_scale, hi.y - 5.0f * a_scale }, ImVec2{ hi.x - 6.0f * a_scale, hi.y - 5.0f * a_scale },
+				Rgba(120, 95, 60, 255), 2.0f * a_scale);
+			ImDrawListManager::AddCircleFilled(a_list, a_centre, r + 13.0f * a_scale, Rgba(22, 20, 19, 250), 64);
+		}
+
+		void FrameFront(ImDrawList* a_list, ImVec2 a_centre, float a_radius, float a_scale)
+		{
+			const float r = a_radius;
+			// Shadow where the glass meets the iron, then the ring's lit and dark edges.
+			ImDrawListManager::AddCircle(a_list, a_centre, r - 1.5f * a_scale, Rgba(0, 0, 0, 130), 64, 3.5f * a_scale);
+			ImDrawListManager::AddCircle(a_list, a_centre, r + 6.5f * a_scale, Rgba(52, 48, 45, 255), 64, 11.0f * a_scale);
+			ImDrawListManager::AddCircle(a_list, a_centre, r + 1.5f * a_scale, Rgba(132, 104, 64, 255), 64, 1.8f * a_scale);
+			ImDrawListManager::AddCircle(a_list, a_centre, r + 12.0f * a_scale, Rgba(96, 88, 80, 255), 64, 1.5f * a_scale);
+			for (int i = 0; i < 8; ++i) {
+				const float a = (static_cast<float>(i) + 0.5f) * kPi / 4.0f;
+				const ImVec2 at{ a_centre.x + std::cos(a) * (r + 6.5f * a_scale), a_centre.y + std::sin(a) * (r + 6.5f * a_scale) };
+				ImDrawListManager::AddCircleFilled(a_list, at, 3.2f * a_scale, Rgba(150, 118, 70, 255), 12);
+				ImDrawListManager::AddCircleFilled(a_list, ImVec2{ at.x - 0.8f * a_scale, at.y - 0.8f * a_scale }, 1.3f * a_scale, Rgba(225, 195, 140, 255), 8);
+			}
+		}
+
+		// One globe: dark glass in an iron frame, filled to a_fill (0..1). a_pulse (0..1) is the low-life warning.
+		void Globe(ImDrawList* a_list, ImFont* a_font, ImVec2 a_centre, float a_radius, float a_fill, float a_trail, const Colours& a_colours,
+			const Value& a_value, float a_scale, const char* a_name, float a_time, float a_pulse)
+		{
+			const float r = a_radius;
+			FrameBack(a_list, a_centre, r, a_scale);
+			if (a_pulse > 0.0f) {
+				ImDrawListManager::AddCircle(a_list, a_centre, r + 16.0f * a_scale, Rgba(255, 40, 30, static_cast<int>(170.0f * a_pulse)), 64, 5.0f * a_scale);
+			}
+
+			// Empty glass, slightly lighter toward the middle.
+			ImDrawListManager::AddCircleFilled(a_list, a_centre, r, Rgba(9, 7, 8, 240), 64);
+			ImDrawListManager::AddCircleFilled(a_list, ImVec2{ a_centre.x - r * 0.08f, a_centre.y - r * 0.08f }, r * 0.72f, Rgba(20, 16, 18, 150), 48);
+
 			if (a_trail > a_fill + 0.002f) {
 				FillBelow(a_list, a_centre, r, a_centre.y + r - 2.0f * r * a_trail, a_colours.trail);
 			}
-			FillBelow(a_list, a_centre, r, top, a_colours.deep);
-			FillBelow(a_list, ImVec2{ a_centre.x, a_centre.y - r * 0.08f }, r * 0.78f, std::max(top, a_centre.y - r * 0.86f), a_colours.bright);
-			if (a_fill > 0.01f && a_fill < 0.99f) {
-				const float dy = top - a_centre.y;
-				const float half = std::sqrt(std::max(r * r - dy * dy, 0.0f));
-				ImDrawListManager::AddLine(a_list, ImVec2{ a_centre.x - half + 2.0f, top }, ImVec2{ a_centre.x + half - 2.0f, top }, a_colours.surface, 1.5f * a_scale);
-			}
+			Liquid(a_list, a_centre, r, a_fill, a_colours, a_time, a_scale);
 
-			// Glass: a soft highlight top-left and a shadowed edge.
-			ImDrawListManager::AddEllipseFilled(a_list, ImVec2{ a_centre.x - r * 0.30f, a_centre.y - r * 0.48f }, ImVec2{ r * 0.42f, r * 0.22f },
-				Rgba(255, 255, 255, 28), -0.5f, 32);
-			ImDrawListManager::AddCircle(a_list, a_centre, r - 1.5f * a_scale, Rgba(0, 0, 0, 120), 64, 3.0f * a_scale);
-			// Metal rim: dark band with a bronze line.
-			ImDrawListManager::AddCircle(a_list, a_centre, r + 3.5f * a_scale, Rgba(120, 95, 60, 255), 64, 2.5f * a_scale);
-			ImDrawListManager::AddCircle(a_list, a_centre, r + 7.0f * a_scale, Rgba(60, 45, 28, 255), 64, 1.5f * a_scale);
+			// Glass: a soft highlight top-left and a small glint.
+			ImDrawListManager::AddEllipseFilled(a_list, ImVec2{ a_centre.x - r * 0.30f, a_centre.y - r * 0.50f }, ImVec2{ r * 0.44f, r * 0.20f },
+				Rgba(255, 255, 255, 26), -0.5f, 32);
+			ImDrawListManager::AddEllipseFilled(a_list, ImVec2{ a_centre.x - r * 0.46f, a_centre.y - r * 0.52f }, ImVec2{ r * 0.12f, r * 0.06f },
+				Rgba(255, 255, 255, 70), -0.6f, 16);
+			FrameFront(a_list, a_centre, r, a_scale);
 
 			if (Settings::GlobeNumbers) {
 				const auto text = std::format("{} {:.0f}/{:.0f}", a_name, std::ceil(a_value.current.load()), a_value.max.load());
-				Text(a_list, a_font, 17.0f * a_scale, ImVec2{ a_centre.x, a_centre.y - r - 18.0f * a_scale }, text);
+				Text(a_list, a_font, 17.0f * a_scale, ImVec2{ a_centre.x, a_centre.y - r - 28.0f * a_scale }, text);
 			}
 		}
 
@@ -199,7 +294,7 @@ namespace Globes
 		}
 		const float scale = a_height / 1080.0f * std::clamp(Settings::GlobeSize, 0.5f, 2.0f);
 		const float r = 78.0f * scale;
-		const float margin = 28.0f * scale;
+		const float margin = 34.0f * scale;
 		const ImVec2 life{ margin + r + 8.0f * scale, a_height - margin - r };
 		const ImVec2 mana{ a_width - margin - r - 8.0f * scale, a_height - margin - r };
 
@@ -208,13 +303,19 @@ namespace Globes
 		s_magicka.Step(g_magicka.current.load() / g_magicka.max.load(), a_delta);
 		s_stamina.Step(g_stamina.current.load() / g_stamina.max.load(), a_delta);
 
-		const Colours red{ Rgba(105, 8, 8, 240), Rgba(175, 22, 18, 235), Rgba(240, 90, 70, 220), Rgba(200, 160, 140, 110) };
-		const Colours blue{ Rgba(10, 25, 110, 240), Rgba(30, 70, 190, 235), Rgba(110, 160, 255, 220), Rgba(160, 175, 220, 110) };
-		Globe(a_list, a_font, life, r, std::clamp(s_health.fill, 0.0f, 1.0f), std::clamp(s_health.trail, 0.0f, 1.0f), red, g_health, scale, "Health");
-		Globe(a_list, a_font, mana, r, std::clamp(s_magicka.fill, 0.0f, 1.0f), std::clamp(s_magicka.trail, 0.0f, 1.0f), blue, g_magicka, scale, "Mana");
+		const Colours red{ Rgba(70, 4, 6, 245), Rgba(140, 14, 14, 235), Rgba(196, 34, 24, 215), Rgba(250, 120, 95, 230), Rgba(200, 160, 140, 110) };
+		const Colours blue{ Rgba(6, 14, 74, 245), Rgba(18, 46, 150, 235), Rgba(44, 92, 214, 215), Rgba(130, 175, 255, 230), Rgba(160, 175, 220, 110) };
+
+		static float s_time = 0.0f;
+		s_time = std::fmod(s_time + std::clamp(a_delta, 0.0f, 0.1f), 3600.0f);
+		// Below a quarter life the life globe's rim throbs red.
+		const float health = std::clamp(s_health.fill, 0.0f, 1.0f);
+		const float pulse = health < 0.25f ? 0.45f + 0.55f * (0.5f + 0.5f * std::sin(s_time * 6.0f)) : 0.0f;
+		Globe(a_list, a_font, life, r, std::clamp(s_health.fill, 0.0f, 1.0f), std::clamp(s_health.trail, 0.0f, 1.0f), red, g_health, scale, "Health", s_time, pulse);
+		Globe(a_list, a_font, mana, r, std::clamp(s_magicka.fill, 0.0f, 1.0f), std::clamp(s_magicka.trail, 0.0f, 1.0f), blue, g_magicka, scale, "Mana", s_time + 11.0f, 0.0f);
 
 		// Stamina: a curved bar hugging the right side of the life globe, filling bottom to top.
-		const float bar = r + 15.0f * scale;
+		const float bar = r + 22.0f * scale;
 		const float thick = 8.0f * scale;
 		const float bottom = kPi * 0.36f;  // lower right
 		const float top = -kPi * 0.36f;    // upper right

@@ -121,6 +121,9 @@ namespace Input
 					if (code == Settings::RotateKey) {
 						State::rotateHeld.store(pressed);
 					}
+					if (code == Settings::PowerAttackKey) {
+						State::powerAttackHeld.store(pressed);
+					}
 					if (code == Settings::AttackInPlaceKey) {
 						State::attackInPlaceHeld.store(pressed);
 					}

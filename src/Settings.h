@@ -23,6 +23,30 @@ namespace Settings
 	inline float         CameraOffsetX = 0.0f;        // sideways shoulder offset (0 = centred)
 	inline float         CameraOffsetZ = 0.0f;        // height offset
 	inline bool          WheelZoom = false;           // mouse wheel zooms (and can scroll into first person)
+
+	// Camera presets, named after the game they imitate. A preset sets pitch, field of view and
+	// distance (offsets 0, pitch locked). Only some of the numbers were measured from screenshots.
+	struct CameraPresetDef
+	{
+		const char* name;
+		float       pitch;
+		float       fov;
+		float       distance;
+		const char* note;
+	};
+	inline constexpr CameraPresetDef CameraPresets[] = {
+		{ "Skyrim ARPG", 30.0f, 90.0f, 600.0f, "This mod's default: wide lens, close camera." },
+		{ "Diablo II", 30.0f, 50.0f, 1290.0f, "Pitch measured (2:1 floor tiles). Lens and distance estimated." },
+		{ "Path of Exile", 50.0f, 50.0f, 1400.0f, "Pitch measured (ring 210 x 160 px at 1080p). Lens and distance estimated." },
+		{ "Path of Exile 2", 30.0f, 50.0f, 1290.0f, "Pitch measured (ring 700 x 350 px). Lens and distance estimated." },
+		{ "Diablo III", 50.0f, 50.0f, 1200.0f, "Estimated." },
+		{ "Diablo IV", 55.0f, 55.0f, 1000.0f, "Estimated: steeper and closer than older ARPGs." },
+		{ "Last Epoch", 45.0f, 50.0f, 1300.0f, "Estimated." },
+		{ "Grim Dawn", 45.0f, 50.0f, 1350.0f, "Estimated." },
+		{ "Torchlight II", 45.0f, 55.0f, 1150.0f, "Estimated." },
+	};
+	inline std::string CameraPreset = "Custom";  // a name from the table, or Custom = the values in the INI
+	bool               ApplyCameraPreset(std::string_view a_name);  // false = no such preset
 	inline float         PitchStep = 5.0f;
 	inline std::uint32_t CameraToggleKey = 0x44;      // F10
 	inline std::uint32_t PitchUpKey = 0x49;           // Page Up
@@ -46,7 +70,7 @@ namespace Settings
 	inline float         CutHeight = 220.0f;          // cut height above the floor at the player
 	inline float         CutRadius = 2500.0f;         // selective cut only
 	inline bool          CutAllGeometry = true;       // every main-camera mesh uses the cut projection (consistent depth)
-	inline float         CutSlope = 0.0f;             // how fast the cut rises behind you (1 = 45 deg, 0 = flat)
+	inline float         CutSlope = 0.3f;             // Automatic style: how fast the cut rises away from the camera (never below Height on screen)
 	inline float         ReanchorDistance = 150.0f;   // cut height only moves if you stand this far above/below it...
 	inline float         ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
 	inline float         HeightSmoothing = 0.6f;      // seconds every height change eases in over (0 = instant)
@@ -119,6 +143,7 @@ namespace Settings
 	inline std::uint32_t LabelKey = 0x38;             // Left Alt (mode 2)
 	inline float         LabelRadius = 1500.0f;       // how far from you items get a label
 	inline float         LabelMaxHeightDiff = 300.0f; // skip items this far above/below you (other floors)
+	inline float         LabelMaxBelow = 60.0f;       // items lower than this under your feet get no label (floors below, hidden rooms)
 	inline int           MaxLabels = 60;
 	inline float         LabelScale = 1.0f;
 	inline int           LabelMinValue = 0;           // hide items worth less than this (gold is always shown)
@@ -129,13 +154,17 @@ namespace Settings
 	inline bool          ShowClutter = false;         // loot filter: junk (kettles, buckets, torches...)
 
 	// [Combat]
-	inline bool  AutoAttack = true;        // while locked on (TDM), the attack button starts attacking by itself; press again to stop
+	inline bool          HoldToAttack = true;      // holding the attack button swings again and again (melee)
+	inline std::uint32_t PowerAttackKey = 0x38;    // held with the attack button: a power attack, as in the base game (0x38 = Left Alt)
+	inline bool          AutoAttack = false;       // while locked on (TDM), one press starts attacking by itself; press again to stop
+	inline bool          AimAtCursor = true;       // spells and bows aim at the cursor (or the hovered enemy), not along the tilted camera
 
 	// [Globes]
 	inline bool  Globes = true;            // Path of Exile style life and mana globes, stamina bar on the life globe
 	inline bool  HideVanillaBars = true;   // hide the game's health, magicka and stamina bars while the globes are on
 	inline float GlobeSize = 1.0f;
 	inline bool  GlobeNumbers = true;      // current/max above each globe
+	inline bool  GlobeAnimate = true;      // moving liquid: a wave on the surface and rising bubbles
 
 	// [Outlines]
 	inline bool  Outlines = true;
