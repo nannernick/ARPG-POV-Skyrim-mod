@@ -12,6 +12,8 @@ PS_IN vs_main(uint id : SV_VertexID)
 }
 
 Texture2D<uint> g_mask : register(t0);
+// equal to Occluder_Id in mask_types.h: the player, in front of this target
+#define OCCLUDER_ID 0xFFFFFFFEu
 Texture2D<float2> g_horizontal : register(t1);
 StructuredBuffer<float4> g_styles : register(t2);
 
@@ -62,7 +64,8 @@ float4 ps_glow_vertical(PS_IN ps_in) : SV_Target
         pixel.x < 0 || pixel.x >= g_width || pixel.y < 0 || pixel.y >= g_height || g_object_id == 0)
         return 0.0f;
 
-    if (g_mask.Load(int3(pixel, 0)) == g_object_id)
+    uint const here = g_mask.Load(int3(pixel, 0));
+    if (here == g_object_id || here == OCCLUDER_ID)
         return 0.0f;
 
     float2 coverage = 0.0f;

@@ -210,6 +210,7 @@ namespace Settings
 		Sensitivity = GetFloat(ini, "Cursor.Sensitivity", Sensitivity, 0.1f, 10.0f);
 		CursorSize = GetFloat(ini, "Cursor.Size", CursorSize, 0.5f, 4.0f);
 		CursorRing = GetBool(ini, "Cursor.Ring", CursorRing);
+		MenuCursor = GetBool(ini, "Cursor.InMenus", MenuCursor);
 		BlockMouseLook = GetBool(ini, "Cursor.BlockMouseLook", BlockMouseLook);
 		RotateKey = GetCode(ini, "Cursor.RotateKey", RotateKey);
 
@@ -235,6 +236,7 @@ namespace Settings
 		MaxLabels = GetInt(ini, "Labels.Max", MaxLabels, 1, 300);
 		LabelScale = GetFloat(ini, "Labels.Scale", LabelScale, 0.5f, 3.0f);
 		LabelMinValue = GetInt(ini, "Labels.MinValue", LabelMinValue, 0, 1000000);
+		StackCount = GetInt(ini, "Labels.StackCount", StackCount, 2, 1000000);
 		ShowFood = GetBool(ini, "Labels.ShowFood", ShowFood);
 		ShowIngredients = GetBool(ini, "Labels.ShowIngredients", ShowIngredients);
 		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
@@ -249,6 +251,7 @@ namespace Settings
 		OutlineBrightness = GetFloat(ini, "Outlines.Brightness", OutlineBrightness, 0.1f, 1.0f);
 		OutlineFade = GetBool(ini, "Outlines.Fade", OutlineFade);
 		OutlineMaxAbove = GetFloat(ini, "Outlines.MaxAbove", OutlineMaxAbove, 0.0f, 10000.0f);
+		OutlineBehindPlayer = GetBool(ini, "Outlines.BehindPlayer", OutlineBehindPlayer);
 		OutlineRadius = GetFloat(ini, "Outlines.Radius", OutlineRadius, 500.0f, 20000.0f);
 		OutlineItemRadius = GetFloat(ini, "Outlines.ItemRadius", OutlineItemRadius, 100.0f, 10000.0f);
 
@@ -312,7 +315,7 @@ namespace Settings
 			<< std::format("ReanchorDistance = {}\nReanchorDelay = {}\n", ReanchorDistance, ReanchorDelay)
 			<< "; Every height change eases in over ~HeightSmoothing seconds, capped at MaxHeightSpeed.\n"
 			<< std::format("HeightSmoothing = {}\nMaxHeightSpeed = {}\n", HeightSmoothing, MaxHeightSpeed)
-			<< "; Style: 1 = cut only when something blocks the view, 0 = always cut (Diablo look).\n"
+			<< "; Style: 0 = always cut (Diablo look), 1 = automatic, cut only when something blocks the view (experimental).\n"
 			<< "; StyleKey switches in game (0x43 = F9).\n"
 			<< std::format("AutoLift = {}\nStyleKey = {:#x}\nClearDelay = {}\nLiftMax = {}\n\n", b(AutoLift), StyleKey, ClearDelay, LiftMax);
 
@@ -347,6 +350,8 @@ namespace Settings
 		out << std::format("Sensitivity = {}\nSize = {}\n", Sensitivity, CursorSize);
 		out << "; 1 = a ring behind the sword, loot bag and exclamation mark, in the symbol's colour.\n";
 		out << std::format("Ring = {}\n", b(CursorRing));
+		out << "; 1 = this cursor is also used in the inventory, containers, barter and other menus, in place of the game's.\n";
+		out << std::format("InMenus = {}\n", b(MenuCursor));
 		out << "; 1 = the mouse moves the cursor instead of the camera. Hold RotateKey to rotate the camera (0 = no key).\n";
 		out << std::format("BlockMouseLook = {}\nRotateKey = {:#x}\n\n", b(BlockMouseLook), RotateKey);
 
@@ -375,6 +380,8 @@ namespace Settings
 		out << std::format("Radius = {}\nMaxHeightDiff = {}\n", LabelRadius, LabelMaxHeightDiff);
 		out << "; Most labels on screen, text size, and a loot filter: hide items worth less than MinValue.\n";
 		out << std::format("Max = {}\nScale = {}\nMinValue = {}\n", MaxLabels, LabelScale, LabelMinValue);
+		out << "; Stacks of at least StackCount read \"200x Gold\"; smaller stacks show the name only (2 = always show the count).\n";
+		out << std::format("StackCount = {}\n", StackCount);
 		out << "; Loot filter. Always shown: weapons, armor, ammo, potions, scrolls, spell tomes, keys, soul gems, gold, lockpicks,\n";
 		out << "; gems, ore and ingots. These add the rest: food, ingredients, other books, and clutter (kettles, buckets...).\n";
 		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
@@ -390,8 +397,10 @@ namespace Settings
 		out << "; Radius / ItemRadius: how far from you actors / items get an outline. Each outlined thing costs a little,\n";
 		out << "; so lower the two radii if frames drop.\n";
 		out << std::format("Radius = {}\nItemRadius = {}\n", OutlineRadius, OutlineItemRadius);
-		out << "; Items, containers and corpses higher than this above your feet get no outline (shelves, upper floors).\n";
-		out << std::format("MaxAbove = {}\n\n", OutlineMaxAbove);
+		out << "; Items, containers and corpses higher than this above your feet get no outline or label (shelves, upper floors).\n";
+		out << std::format("MaxAbove = {}\n", OutlineMaxAbove);
+		out << "; 1 = things behind you don't glow over your character.\n";
+		out << std::format("BehindPlayer = {}\n\n", b(OutlineBehindPlayer));
 
 		out << "[Debug]\n"
 			<< std::format("Cutaway = {}\nPointClick = {}\n", b(CutawayDebugLog), b(PointClickDebugLog));

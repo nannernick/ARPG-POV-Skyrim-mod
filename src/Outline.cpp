@@ -298,21 +298,18 @@ namespace Outline
 				colors.reserve(entries.size());
 				geometries.reserve(entries.size());
 
-				std::uint32_t index = 0;
-				std::size_t   total = 0;
-				for (const auto& entry : entries) {
-					auto*                    form = RE::TESForm::LookupByID(entry.formID);
+				// A model's parts, from the cache when it's still good.
+				auto fetch = [&](RE::FormID a_formID, bool a_living, std::vector<RenderGeometry>& a_group) {
+					auto*                    form = RE::TESForm::LookupByID(a_formID);
 					const RE::TESObjectREFR* ref = form ? form->AsReference() : nullptr;
 					RE::NiAVObject* const    root = ref ? ref->GetCurrent3D() : nullptr;
 					if (!ref || !root) {
-						continue;
+						return;
 					}
-
-					std::vector<RenderGeometry> group;
-					const auto                  cached = cache.lookup(entry.formID);
+					const auto cached = cache.lookup(a_formID);
 					if (cached.geometries) {
 						bool stale = cached.root3d != root;
-						if (!stale && entry.living) {
+						if (!stale && a_living) {
 							// Living things change: a weapon drawn or sheathed swaps parts of the model
 							// without rebuilding it. A cached part that has been taken off the model
 							// (no parent) would be drawn frozen in mid-air, so check every frame; added
@@ -323,27 +320,44 @@ namespace Outline
 									break;
 								}
 							}
-							if (!stale && (a_frame + entry.formID) % 45 == 0) {
-								const auto it = _counts.find(entry.formID);
+							if (!stale && (a_frame + a_formID) % 45 == 0) {
+								const auto it = _counts.find(a_formID);
 								stale = it == _counts.end() || it->second != CountGeometries(root);
 							}
 						}
 						if (stale) {
-							cache.erase(entry.formID);
+							cache.erase(a_formID);
 						} else {
-							group = *cached.geometries;
+							a_group = *cached.geometries;
+							return;
 						}
 					}
-					if (group.empty()) {
-						collect_render_geometries(ref, a_device, group);
-						_counts[entry.formID] = CountGeometries(root);
-						cache.insert(entry.formID, root, std::vector<RenderGeometry>(group));
-						if (group.empty()) {
-							continue;
-						}
-						// The cache owns the position buffers; this frame's copy only borrows them.
-					}
+					collect_render_geometries(ref, a_device, a_group);
+					_counts[a_formID] = CountGeometries(root);
+					cache.insert(a_formID, root, std::vector<RenderGeometry>(a_group));
+					// The cache owns the position buffers; this frame's copy only borrows them.
+				};
 
+				// Things further from the camera than the player are behind them on screen.
+				auto*              player = RE::PlayerCharacter::GetSingleton();
+				const RE::NiPoint3 eye = camera->world.translate;
+				float              playerDepth = -1.0f;
+				if (player && Settings::OutlineBehindPlayer) {
+					const auto  feet = player->GetPosition();
+					const float height = std::max(player->GetHeight(), 60.0f);
+					playerDepth = eye.GetDistance(RE::NiPoint3{ feet.x, feet.y, feet.z + height * 0.5f });
+				}
+
+				std::vector<std::uint8_t> behind;
+				behind.reserve(entries.size());
+				std::uint32_t index = 0;
+				std::size_t   total = 0;
+				for (const auto& entry : entries) {
+					std::vector<RenderGeometry> group;
+					fetch(entry.formID, entry.living, group);
+					if (group.empty()) {
+						continue;
+					}
 					if (total + group.size() > kMaxGeometries) {
 						break;
 					}
@@ -353,7 +367,17 @@ namespace Outline
 					}
 					colors.push_back(entry.color);
 					geometries.push_back(std::move(group));
+					const bool isPlayer = player && entry.formID == player->GetFormID();
+					behind.push_back(!isPlayer && playerDepth > 0.0f && eye.GetDistance(entry.centre) > playerDepth ? 1 : 0);
 					++index;
+				}
+
+				if (playerDepth > 0.0f && std::find(behind.begin(), behind.end(), std::uint8_t{ 1 }) != behind.end()) {
+					std::vector<RenderGeometry> occluder;
+					fetch(player->GetFormID(), true, occluder);
+					if (!occluder.empty() && total + occluder.size() <= kMaxGeometries * 2) {
+						_mask.set_occluder(std::move(occluder), std::move(behind));
+					}
 				}
 
 				if (!geometries.empty()) {

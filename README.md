@@ -70,7 +70,7 @@ To measure any game, screenshot a circle on the ground (an AoE ring) near the ce
 
 ## Camera splitter
 Indoors, everything above a cut line is removed by the GPU. Walls end cleanly and roofs vanish, while floors, furniture and characters stay. The background goes black.
-- **F9:** *Auto* (split only when walls block the view) or *Always* (Diablo look)
+- **F9:** *Diablo style* (always cut, the default) or *Automatic* (experimental: split only when walls block the view)
 - The cut stays at one height per floor. Jumps don't move it, and changes ease in.
 - The cut rises behind you, so far walls stay full height.
 - Idea from machinegod's *Skyrim Camera Disocclusion System*. This is a separate implementation.
@@ -98,7 +98,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 |---|---|
 | F7 | Point and click on/off |
 | F8 | Reload the INI |
-| F9 | Cutaway style: Auto / Always |
+| F9 | Cutaway style: Diablo style / Automatic (experimental) |
 | F10 | Camera lock on/off |
 | Page Up / Page Down | Camera more top-down / flatter |
 
@@ -138,9 +138,9 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `InteriorOnly` | 1 | Only split indoors |
 | `Height` | 220 | Cut height above the floor (a human is ~128) |
 | `Slope` | 1 | How fast the cut rises behind you, so far walls stay (0 = flat) |
-| `AutoLift` | 1 | Starting style: 1 = Auto, 0 = Always |
+| `AutoLift` | 0 | Starting style: 0 = Diablo style, 1 = Automatic (experimental) |
 | `StyleKey` | 0x43 (F9) | Switch style |
-| `ClearDelay` / `LiftMax` | 0.75 / 600 | Auto: seconds of clear view before it lifts, how far it lifts |
+| `ClearDelay` / `LiftMax` | 0.75 / 600 | Automatic: seconds of clear view before it lifts, how far it lifts |
 | `ReanchorDistance` / `ReanchorDelay` | 150 / 1 | How far and how long you must stand on a new floor before the cut moves |
 | `HeightSmoothing` / `MaxHeightSpeed` | 0.6 / 800 | How gently height changes ease in |
 | `AllGeometry` | 1 | Leave on (keeps props and characters visible) |
@@ -165,6 +165,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[PointClick] Enabled` / `ToggleKey` | 1 / 0x41 (F7) | On at start, on/off key |
 | `[Cursor] Sensitivity` / `Size` | 1 / 1 | Cursor speed and size |
 | `[Cursor] Ring` | 1 | Ring behind the sword, bag and exclamation mark, in the symbol's colour |
+| `[Cursor] InMenus` | 1 | Use this cursor in the inventory, containers, barter and other menus, starting where it was |
 | `[Cursor] BlockMouseLook` / `RotateKey` | 1 / 0 | Mouse moves the cursor, hold a key to rotate the camera |
 | `[Move] Button` / `HoldToMove` | 0 (left) / 1 | Move button, follow the cursor while held |
 | `[Move] ArriveRadius` / `MaxDistance` | 40 / 3000 | Stop distance, furthest one click sends you |
@@ -175,11 +176,13 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Labels] Mode` / `Key` | 1 / 0x38 (Alt) | 0 = hovered only, 1 = always, 2 = while the key is held |
 | `[Labels] Radius` / `MaxHeightDiff` | 1500 / 300 | How far away, and how far above/below, items get labels |
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
+| `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 1 / 1 | Outlines on, and per group |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 3000 / 700 | How far away actors / items are outlined |
-| `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline |
+| `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline or label |
+| `[Outlines] BehindPlayer` | 1 | Things behind your character don't glow over it |
 </details>
 
 ## Credits

@@ -86,7 +86,7 @@ namespace Menu
 			Checkbox("Enabled", &Settings::CutawayEnabled);
 			Checkbox("Interiors only", &Settings::InteriorOnly);
 
-			const char* const styles[] = { "Auto - rises with the room", "Locked height (Diablo look)" };
+			const char* const styles[] = { "Automatic (experimental)", "Diablo style - locked height" };
 			int               style = Occlusion::GetAutoLift() ? 0 : 1;
 			if (Combo("Style", &style, styles, 2)) {
 				Occlusion::SetAutoLift(style == 0);
@@ -107,7 +107,7 @@ namespace Menu
 			Hint("How far above/below the current height you must stand before the cut moves.");
 			SliderFloat("New floor delay (s)", &Settings::ReanchorDelay, 0.0f, 5.0f, "%.1f");
 
-			SeparatorText("Auto style");
+			SeparatorText("Automatic style (experimental)");
 			BeginDisabled(!Occlusion::GetAutoLift());
 			SliderFloat("Clear delay (s)", &Settings::ClearDelay, 0.0f, 5.0f, "%.2f");
 			SliderFloat("Max rise", &Settings::LiftMax, 100.0f, 2000.0f, "%.0f");

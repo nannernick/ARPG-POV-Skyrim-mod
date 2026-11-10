@@ -671,7 +671,7 @@ namespace Occlusion
 	{
 		SetAutoLift(!g_autoLift);
 		Settings::AutoLift = g_autoLift;
-		RE::SendHUDMessage::ShowHUDMessage(g_autoLift ? "Cutaway: Auto (rises with the room)" : "Cutaway: Locked height");
+		RE::SendHUDMessage::ShowHUDMessage(g_autoLift ? "Cutaway: Automatic (experimental)" : "Cutaway: Diablo style");
 		logs::info("[cut] style toggled: {}", g_autoLift ? "auto" : "locked");
 	}
 

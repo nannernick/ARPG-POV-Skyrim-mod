@@ -573,6 +573,8 @@ namespace Game
 			return true;
 		}
 
+		constexpr std::size_t kMaxItems = 400;
+
 		void Scan(RE::PlayerCharacter* a_player)
 		{
 			auto* tes = RE::TES::GetSingleton();
@@ -650,7 +652,8 @@ namespace Game
 					target.color = kWhite;
 				} else {
 					const float dist = target.distance;
-					if (dist > Settings::LabelRadius || !ClassifyItem(a_ref, base, target.color)) {
+					// A cap for very crowded rooms (piles of coins, dozens of boxes).
+					if (items.size() >= kMaxItems || dist > Settings::LabelRadius || !ClassifyItem(a_ref, base, target.color)) {
 						return next;
 					}
 					const char* name = a_ref->GetDisplayFullName();
@@ -658,9 +661,10 @@ namespace Game
 						return next;
 					}
 					target.kind = Kind::kItem;
-					target.text = name;
-					if (const auto count = a_ref->extraList.GetCount(); count > 1) {
-						target.text += std::format(" ({})", count);
+					if (const auto count = a_ref->extraList.GetCount(); count >= Settings::StackCount) {
+						target.text = std::format("{}x {}", count, name);
+					} else {
+						target.text = name;
 					}
 					if (a_ref->IsCrimeToActivate()) {
 						target.color = Rgb(255, 90, 90);  // taking it is stealing
@@ -898,6 +902,49 @@ namespace Game
 		}
 	}
 
+	// Menus with the game's cursor (inventory, containers, barter, Grid Inventory): the game's
+	// cursor starts where ours was, ours picks up where the game's was left, and ours is drawn
+	// in its place. Main thread.
+	void SyncMenuCursor()
+	{
+		static bool s_open = false;
+		auto*       ui = RE::UI::GetSingleton();
+		auto*       cursor = RE::MenuCursor::GetSingleton();
+		if (!ui || !cursor) {
+			return;
+		}
+		const bool open = ui->IsMenuOpen(RE::CursorMenu::MENU_NAME);
+		auto&      data = cursor->GetRuntimeData();
+		const float screenW = State::screenW.load();
+		const float screenH = State::screenH.load();
+		// The game's cursor is in its own screen units; ours is in pixels.
+		const float sx = data.screenWidthX > 1.0f ? data.screenWidthX / screenW : 1.0f;
+		const float sy = data.screenWidthY > 1.0f ? data.screenWidthY / screenH : 1.0f;
+
+		if (open && !s_open) {
+			if (const float x = State::cursorX.load(), y = State::cursorY.load(); x >= 0.0f && y >= 0.0f) {
+				data.cursorPosX = x * sx;
+				data.cursorPosY = y * sy;
+			}
+		} else if (!open && s_open) {
+			const float x = data.cursorPosX / sx;
+			const float y = data.cursorPosY / sy;
+			if (x >= 0.0f && y >= 0.0f && x <= screenW && y <= screenH) {
+				State::cursorX.store(x);
+				State::cursorY.store(y);
+			}
+		}
+		s_open = open;
+
+		const bool ours = open && Settings::PointClickEnabled && Settings::MenuCursor && Hud::Available();
+		State::menuCursor.store(ours);
+		if (open) {
+			if (const auto menu = ui->GetMenu(RE::CursorMenu::MENU_NAME); menu && menu->uiMovie) {
+				menu->uiMovie->SetVisible(!ours);
+			}
+		}
+	}
+
 	void RefreshGameplay()
 	{
 		bool on = false;
@@ -917,6 +964,7 @@ namespace Game
 			     !Hud::FrameworkMenuOpen();
 		}
 		State::gameplay.store(on);
+		SyncMenuCursor();
 	}
 
 	void Reset()

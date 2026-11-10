@@ -44,7 +44,7 @@ namespace Settings
 	inline float         ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
 	inline float         HeightSmoothing = 0.6f;      // seconds every height change eases in over (0 = instant)
 	inline float         MaxHeightSpeed = 800.0f;     // units/second cap on any height change
-	inline bool          AutoLift = true;             // style: true = cut only when the view is blocked, false = always cut
+	inline bool          AutoLift = false;            // style: false = always cut (Diablo look, default), true = automatic (experimental)
 	inline std::uint32_t StyleKey = 0x43;             // F9: switch style in game
 	inline float         ClearDelay = 0.75f;          // auto style: seconds of clear view before the cut rises
 	inline float         LiftMax = 600.0f;            // auto style: how far it rises; at the top the cut switches off
@@ -86,6 +86,7 @@ namespace Settings
 	inline float         Sensitivity = 1.0f;          // cursor speed
 	inline float         CursorSize = 1.0f;
 	inline bool          CursorRing = true;           // ring behind the sword / bag / exclamation mark, in the symbol's colour
+	inline bool          MenuCursor = true;           // draw this cursor in inventory-type menus too, in place of the game's
 	inline bool          BlockMouseLook = true;       // the mouse moves the cursor, not the camera
 	inline std::uint32_t RotateKey = 0;               // hold to rotate the camera with the mouse (0 = none)
 
@@ -114,6 +115,7 @@ namespace Settings
 	inline int           MaxLabels = 60;
 	inline float         LabelScale = 1.0f;
 	inline int           LabelMinValue = 0;           // hide items worth less than this (gold is always shown)
+	inline int           StackCount = 5;              // stacks of at least this many read "200x Gold" (smaller stacks show the name only)
 	inline bool          ShowFood = false;            // loot filter: food and drink
 	inline bool          ShowIngredients = false;     // loot filter: alchemy ingredients
 	inline bool          ShowBooks = false;           // loot filter: books and notes (spell tomes always show)
@@ -128,7 +130,8 @@ namespace Settings
 	inline float OutlineOpacity = 0.6f;       // how strong the glow is (1 = solid)
 	inline float OutlineBrightness = 0.7f;    // how bright its colours are (1 = full colour, lower = darker)
 	inline bool  OutlineFade = true;          // outlines get fainter with distance
-	inline float OutlineMaxAbove = 120.0f;    // items, containers and corpses higher than this above your feet get no outline
+	inline float OutlineMaxAbove = 120.0f;    // items, containers and corpses higher than this above your feet get no outline or label
+	inline bool  OutlineBehindPlayer = true;  // things behind you don't glow over you
 	inline float OutlineRadius = 3000.0f;     // how far from you actors get an outline
 	inline float OutlineItemRadius = 700.0f;  // how far from you items get an outline (their labels reach further)
 

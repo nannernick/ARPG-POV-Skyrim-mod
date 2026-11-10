@@ -218,6 +218,17 @@ namespace Hud
 
 			if (!State::gameplay.load() || FrameworkMenuOpen()) {
 				SetHovered({}, Game::Kind::kItem);
+				// In the inventory and other menus, draw our cursor where the game's would be.
+				if (State::menuCursor.load() && !FrameworkMenuOpen()) {
+					if (auto* cursor = RE::MenuCursor::GetSingleton(); cursor) {
+						const auto& data = cursor->GetRuntimeData();
+						const float x = data.screenWidthX > 1.0f ? data.cursorPosX * w / data.screenWidthX : data.cursorPosX;
+						const float y = data.screenWidthY > 1.0f ? data.cursorPosY * h / data.screenWidthY : data.cursorPosY;
+						if (auto* list = GetForegroundDrawList(); list) {
+							DrawCursor(list, x, y, false, Game::Kind::kItem);
+						}
+					}
+				}
 				return;
 			}
 
@@ -284,7 +295,7 @@ namespace Hud
 			std::vector<Label> labels;
 			for (std::size_t i = 0; i < shapes.size(); ++i) {
 				const auto& target = *shapes[i].target;
-				if (target.kind != Game::Kind::kItem || target.text.empty()) {
+				if (target.kind != Game::Kind::kItem || target.text.empty() || target.above > Settings::OutlineMaxAbove) {
 					continue;
 				}
 				if (!showAll && i != hovered) {
@@ -374,6 +385,8 @@ namespace Hud
 			SliderFloat("Cursor speed", &Settings::Sensitivity, 0.1f, 5.0f, "%.2f");
 			SliderFloat("Cursor size", &Settings::CursorSize, 0.5f, 4.0f, "%.1f");
 			Checkbox("Ring behind the sword, bag and exclamation mark", &Settings::CursorRing);
+			Checkbox("Use this cursor in menus too", &Settings::MenuCursor);
+			Hint("Inventory, containers, barter and other menus (Grid Inventory included) show this cursor instead of the game's.");
 			Checkbox("Mouse moves the cursor, not the camera", &Settings::BlockMouseLook);
 
 			SeparatorText("Movement");
@@ -410,8 +423,9 @@ namespace Hud
 			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
 			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
 			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
-			SliderFloat("No loot outlines higher than", &Settings::OutlineMaxAbove, 0.0f, 500.0f, "%.0f");
-			Hint("Items, containers and corpses this far above your feet get no outline (a human is ~128 tall).");
+			SliderFloat("No loot outlines or labels higher than", &Settings::OutlineMaxAbove, 0.0f, 500.0f, "%.0f");
+			Hint("Items, containers and corpses this far above your feet get no outline or label (a human is ~128 tall).");
+			Checkbox("Things behind you don't glow over you", &Settings::OutlineBehindPlayer);
 
 			SeparatorText("Item labels");
 			const char* const labelModes[] = { "Only under the cursor", "Always", "While the label key is held" };
@@ -421,6 +435,8 @@ namespace Hud
 			SliderInt("Most labels", &Settings::MaxLabels, 5, 200);
 			SliderInt("Hide items worth less than", &Settings::LabelMinValue, 0, 500);
 			Hint("Gold is always shown.");
+			SliderInt("Show the count from", &Settings::StackCount, 2, 100);
+			Hint("Stacks at least this big read \"200x Gold\". Smaller stacks show the name only. 2 = always show the count.");
 
 			SeparatorText("Loot filter");
 			TextDisabled("Always shown: gear, potions, scrolls, spell tomes, keys, soul gems, gold, gems, ore.");

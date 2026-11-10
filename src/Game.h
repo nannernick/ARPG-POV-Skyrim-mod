@@ -48,6 +48,7 @@ namespace Game
 namespace State
 {
 	inline std::atomic<bool>  gameplay{ false };  // cursor is live: in game, third person, no menu open
+	inline std::atomic<bool>  menuCursor{ false };  // a menu with the game's cursor is open and ours is drawn in its place
 	inline std::atomic<float> cursorX{ -1.0f };   // pixels; -1 = not placed yet (HUD centres it)
 	inline std::atomic<float> cursorY{ -1.0f };
 	inline std::atomic<float> screenW{ 1920.0f };

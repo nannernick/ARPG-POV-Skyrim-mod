@@ -47,7 +47,14 @@ public:
         CommonStates const& states);
 
     void end_frame();
+
+    // The player's geometry, and which targets sit behind the player. A target behind the player
+    // gets the player drawn into its mask with Occluder_Id, so its glow isn't drawn over the player.
+    // Set before draw(); cleared by end_frame().
+    void set_occluder(std::vector<RenderGeometry> occluder, std::vector<uint8_t> behind);
 private:
+    std::vector<RenderGeometry> m_occluder;
+    std::vector<uint8_t> m_behind;
     void draw_silhouette(REX::W32::ID3D11Device* device, REX::W32::ID3D11DeviceContext* context,
         REX::W32::ID3D11RenderTargetView* overlay_target, std::vector<std::vector<RenderGeometry>> const& render_geometries,
         DirectX::XMFLOAT4X4 const& view_proj, REX::W32::D3D11_VIEWPORT const& viewport, CommonStates const& states);

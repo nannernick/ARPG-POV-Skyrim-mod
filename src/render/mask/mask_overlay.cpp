@@ -154,7 +154,16 @@ void MaskOverlay::draw(REX::W32::ID3D11Device* device, REX::W32::ID3D11DeviceCon
 
 void MaskOverlay::end_frame()
 {
+    m_occluder.clear();
+    m_behind.clear();
+}
 
+void MaskOverlay::set_occluder(std::vector<RenderGeometry> occluder, std::vector<uint8_t> behind)
+{
+    m_occluder = std::move(occluder);
+    m_behind = std::move(behind);
+    for (RenderGeometry& part : m_occluder)
+        part.target_index = Occluder_Id - 1;  // the geometry pass writes target_index + 1
 }
 
 void MaskOverlay::draw_silhouette(REX::W32::ID3D11Device* device, REX::W32::ID3D11DeviceContext* context,
@@ -237,6 +246,21 @@ void MaskOverlay::draw_outline(REX::W32::ID3D11Device* device, REX::W32::ID3D11D
 
         context->OMSetBlendState(states.opaque(), nullptr, 0xFFFFFFFF);
         m_geometry_pass.draw(device, context, view_proj, group);
+
+        // Behind the player: draw the player over it, out to the edge of its glow, so the hidden
+        // part gives no glow and none of its glow is drawn on the player.
+        uint32_t const target = group.front().target_index;
+        if (!m_occluder.empty() && target < m_behind.size() && m_behind[target])
+        {
+            REX::W32::D3D11_RECT const occluder_scissor{
+                vertical_rect.left,
+                vertical_rect.top,
+                vertical_rect.right,
+                vertical_rect.bottom
+            };
+            context->RSSetScissorRects(1, &occluder_scissor);
+            m_geometry_pass.draw(device, context, view_proj, m_occluder);
+        }
 
         if (!m_outline_pass.draw(context, overlay_target, m_mask_rt.srv(), vp, group.front().target_index + 1, profile, horizontal_rect, vertical_rect, states))
             break;
