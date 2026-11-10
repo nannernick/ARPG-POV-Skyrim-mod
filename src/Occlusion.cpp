@@ -55,7 +55,7 @@ namespace Occlusion
 		float                           g_reanchorTimer{ 0.0f };
 		bool                            g_smoothValid{ false };
 		float                           g_smoothFloor{ 0.0f };
-		bool                            g_autoLift{ true };  // runtime style, toggled by StyleKey / the menu
+		bool                            g_autoLift{ false };  // runtime style, toggled by StyleKey / the menu
 		const Settings::CellOverride*   g_cellOverride{ nullptr };
 
 		// Auto-lift: how far the cut is currently raised above its normal height.

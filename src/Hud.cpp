@@ -411,7 +411,7 @@ namespace Hud
 			Hint("Off: only the thing under the cursor is outlined.");
 			Checkbox("Enemies (red)", &Settings::OutlineEnemies);
 			SameLine();
-			Checkbox("You and NPCs (white)", &Settings::OutlineNpcs);
+			Checkbox("NPCs (green) and you (white)", &Settings::OutlineNpcs);
 			SameLine();
 			Checkbox("Items", &Settings::OutlineItems);
 			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);

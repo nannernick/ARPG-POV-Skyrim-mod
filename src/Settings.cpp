@@ -388,7 +388,7 @@ namespace Settings
 			b(ShowClutter));
 
 		out << "[Outlines]\n";
-		out << "; True outlines around the model: red = enemies, white = you and NPCs, items = their label colour.\n";
+		out << "; True outlines around the model: red = enemies, green = NPCs, white = you, items = their label colour.\n";
 		out << "; Whatever the cursor is on is always outlined.\n";
 		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlineItems));
 		out << "; Thickness = glow size, 1 (a thin line) to 8. Opacity = how strong the glow is. Brightness = how bright\n";

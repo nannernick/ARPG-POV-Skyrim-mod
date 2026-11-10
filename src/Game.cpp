@@ -370,6 +370,7 @@ namespace Game
 		constexpr std::uint32_t kWhite = Rgb(235, 235, 235);
 		constexpr std::uint32_t kGold = Rgb(230, 195, 100);
 		constexpr std::uint32_t kRed = Rgb(255, 60, 60);
+		constexpr std::uint32_t kGreen = Rgb(90, 225, 110);  // same green as the talk cursor
 
 		bool HasKeyword(RE::TESBoundObject* a_base, std::string_view a_keyword)
 		{
@@ -626,7 +627,7 @@ namespace Game
 						target.color = kRed;
 					} else {
 						target.kind = Kind::kNpc;
-						target.color = kWhite;
+						target.color = kGreen;
 					}
 					target.pad = 10.0f;
 					ActorPoints(actor, target);

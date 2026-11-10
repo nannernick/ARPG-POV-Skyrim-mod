@@ -124,15 +124,15 @@ namespace Settings
 	// [Outlines]
 	inline bool  Outlines = true;
 	inline bool  OutlineEnemies = true;    // red
-	inline bool  OutlineNpcs = true;       // white, the player included
-	inline bool  OutlineItems = true;      // the label's colour
+	inline bool  OutlineNpcs = false;      // NPCs green, you white (off: only when hovered)
+	inline bool  OutlineItems = false;     // the label's colour (off: only when hovered)
 	inline int   OutlineThickness = 3;        // glow size: 1 = a thin line; higher widens the line and its glow
 	inline float OutlineOpacity = 0.6f;       // how strong the glow is (1 = solid)
 	inline float OutlineBrightness = 0.7f;    // how bright its colours are (1 = full colour, lower = darker)
 	inline bool  OutlineFade = true;          // outlines get fainter with distance
 	inline float OutlineMaxAbove = 120.0f;    // items, containers and corpses higher than this above your feet get no outline or label
 	inline bool  OutlineBehindPlayer = true;  // things behind you don't glow over you
-	inline float OutlineRadius = 3000.0f;     // how far from you actors get an outline
+	inline float OutlineRadius = 1500.0f;     // how far from you actors get an outline
 	inline float OutlineItemRadius = 700.0f;  // how far from you items get an outline (their labels reach further)
 
 	// [Debug]

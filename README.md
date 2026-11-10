@@ -76,7 +76,7 @@ Indoors, everything above a cut line is removed by the GPU. Walls end cleanly an
 - Idea from machinegod's *Skyrim Camera Disocclusion System*. This is a separate implementation.
 
 ## Outlines
-Enemies get a red glow, you and NPCs white, nearby items the colour of their label. Whatever the cursor is on glows at full strength. These are true outlines that follow the model, limbs and weapons included.
+By default only nearby enemies (red) glow, plus whatever the cursor is on, at full strength. NPCs (green), you (white) and nearby items (their label colour) can be switched on too. These are true outlines that follow the model, limbs and weapons included.
 
 - The glow is soft by default: darkened colours, part transparent, fainter with distance. Size, strength and brightness are sliders.
 - Outlines show through walls. Loot that sits well above you (shelves, ledges, the floor upstairs) gets no outline, so it isn't drawn over the scene.
@@ -178,9 +178,9 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
-| `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 1 / 1 | Outlines on, and per group |
+| `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 0 / 0 | Outlines on, and per group (hovered things always glow) |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
-| `[Outlines] Radius` / `ItemRadius` | 3000 / 700 | How far away actors / items are outlined |
+| `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |
 | `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline or label |
 | `[Outlines] BehindPlayer` | 1 | Things behind your character don't glow over it |
 </details>
