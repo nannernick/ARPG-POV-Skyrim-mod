@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Globes.h"
 #include "Hud.h"
 #include "Settings.h"
 
@@ -966,6 +967,7 @@ namespace Game
 		}
 		State::gameplay.store(on);
 		SyncMenuCursor();
+		Globes::Update();
 	}
 
 	void Reset()

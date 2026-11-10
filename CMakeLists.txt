@@ -52,6 +52,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
 		src/Camera.cpp
 		src/Cut.cpp
 		src/Game.cpp
+		src/Globes.cpp
 		src/Hud.cpp
 		src/Input.cpp
 		src/Menu.cpp

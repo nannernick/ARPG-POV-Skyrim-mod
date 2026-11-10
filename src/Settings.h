@@ -121,6 +121,12 @@ namespace Settings
 	inline bool          ShowBooks = false;           // loot filter: books and notes (spell tomes always show)
 	inline bool          ShowClutter = false;         // loot filter: junk (kettles, buckets, torches...)
 
+	// [Globes]
+	inline bool  Globes = true;            // Path of Exile style life and mana globes, stamina bar on the life globe
+	inline bool  HideVanillaBars = true;   // hide the game's health, magicka and stamina bars while the globes are on
+	inline float GlobeSize = 1.0f;
+	inline bool  GlobeNumbers = true;      // current/max above each globe
+
 	// [Outlines]
 	inline bool  Outlines = true;
 	inline bool  OutlineEnemies = true;    // red

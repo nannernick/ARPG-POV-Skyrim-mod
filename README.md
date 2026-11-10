@@ -6,6 +6,7 @@ Turns Skyrim into a Path of Exile style ARPG view, in one SKSE plugin:
 - **Cutaway:** indoors, the walls and roofs between the camera and you are cut away.
 - **Point and click:** an on-screen cursor, click-to-move, click to attack, loot, talk and use doors.
 - **Item labels:** loot shows its name, with a loot filter.
+- **Life and mana globes:** Path of Exile style globes in the bottom corners, with stamina as a curved bar on the life globe. The game's bars are hidden while they're on.
 - **Outlines:** a soft glow around enemies, NPCs, you and nearby loot.
 
 Play with the mouse, with **WASD and a lock-on key** (True Directional Movement's target lock), or both. Tested on Skyrim **1.7.104**.
@@ -178,6 +179,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
+| `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` | 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, current/max above each globe |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 0 / 0 | Outlines on, and per group (hovered things always glow) |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |

@@ -242,6 +242,10 @@ namespace Settings
 		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
 		ShowClutter = GetBool(ini, "Labels.ShowClutter", ShowClutter);
 
+		Globes = GetBool(ini, "Globes.Enabled", Globes);
+		HideVanillaBars = GetBool(ini, "Globes.HideVanillaBars", HideVanillaBars);
+		GlobeSize = GetFloat(ini, "Globes.Size", GlobeSize, 0.5f, 2.0f);
+		GlobeNumbers = GetBool(ini, "Globes.Numbers", GlobeNumbers);
 		Outlines = GetBool(ini, "Outlines.Enabled", Outlines);
 		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
 		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
@@ -386,6 +390,10 @@ namespace Settings
 		out << "; gems, ore and ingots. These add the rest: food, ingredients, other books, and clutter (kettles, buckets...).\n";
 		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
 			b(ShowClutter));
+
+		out << "[Globes]\n";
+		out << "; Life and mana globes (Path of Exile style), stamina as a bar on the life globe. HideVanillaBars hides the game's bars.\n";
+		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\n\n", b(Globes), b(HideVanillaBars), GlobeSize, b(GlobeNumbers));
 
 		out << "[Outlines]\n";
 		out << "; True outlines around the model: red = enemies, green = NPCs, white = you, items = their label colour.\n";

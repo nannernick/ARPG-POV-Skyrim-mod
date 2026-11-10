@@ -1,5 +1,6 @@
 #include "Hud.h"
 #include "Cursor.h"
+#include "Globes.h"
 #include "Game.h"
 #include "Hull.h"
 #include "Input.h"
@@ -216,6 +217,10 @@ namespace Hud
 			State::screenW.store(w);
 			State::screenH.store(h);
 
+			if (auto* globes = GetForegroundDrawList(); globes) {
+				Globes::Draw(globes, GetFont(), w, h, io->DeltaTime);
+			}
+
 			if (!State::gameplay.load() || FrameworkMenuOpen()) {
 				SetHovered({}, Game::Kind::kItem);
 				// In the inventory and other menus, draw our cursor where the game's would be.
@@ -388,6 +393,12 @@ namespace Hud
 			Checkbox("Use this cursor in menus too", &Settings::MenuCursor);
 			Hint("Inventory, containers, barter and other menus (Grid Inventory included) show this cursor instead of the game's.");
 			Checkbox("Mouse moves the cursor, not the camera", &Settings::BlockMouseLook);
+
+			SeparatorText("Life and mana globes");
+			Checkbox("Show globes", &Settings::Globes);
+			Checkbox("Hide the game's bars", &Settings::HideVanillaBars);
+			SliderFloat("Globe size", &Settings::GlobeSize, 0.5f, 2.0f, "%.2f");
+			Checkbox("Numbers above the globes", &Settings::GlobeNumbers);
 
 			SeparatorText("Movement");
 			Checkbox("Hold to keep moving", &Settings::HoldToMove);
