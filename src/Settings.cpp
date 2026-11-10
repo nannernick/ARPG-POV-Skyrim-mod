@@ -138,8 +138,9 @@ namespace Settings
 		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
 		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
 		OutlineItems = GetBool(ini, "Outlines.Items", OutlineItems);
-		OutlineThickness = GetFloat(ini, "Outlines.Thickness", OutlineThickness, 0.5f, 6.0f);
+		OutlineThickness = GetInt(ini, "Outlines.Thickness", OutlineThickness, 1, 8);
 		OutlineRadius = GetFloat(ini, "Outlines.Radius", OutlineRadius, 500.0f, 20000.0f);
+		OutlineItemRadius = GetFloat(ini, "Outlines.ItemRadius", OutlineItemRadius, 100.0f, 10000.0f);
 
 		DebugLog = GetBool(ini, "Debug.Log", DebugLog);
 
@@ -201,10 +202,12 @@ namespace Settings
 			b(ShowClutter));
 
 		out << "[Outlines]\n";
-		out << "; Thin outlines: red = enemies, white = you and NPCs, items = their label colour.\n";
+		out << "; True outlines around the model: red = enemies, white = you and NPCs, items = their label colour.\n";
+		out << "; Whatever the cursor is on is always outlined.\n";
 		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlineItems));
-		out << "; Line thickness in pixels, and how far from you actors get an outline.\n";
-		out << std::format("Thickness = {}\nRadius = {}\n\n", OutlineThickness, OutlineRadius);
+		out << "; Thickness: 1 = thinnest, up to 8. Radius / ItemRadius: how far from you actors / items get an outline.\n";
+		out << "; Each outlined thing costs a little, so lower the two radii if frames drop.\n";
+		out << std::format("Thickness = {}\nRadius = {}\nItemRadius = {}\n\n", OutlineThickness, OutlineRadius, OutlineItemRadius);
 
 		out << "[Debug]\n";
 		out << std::format("Log = {}\n", b(DebugLog));

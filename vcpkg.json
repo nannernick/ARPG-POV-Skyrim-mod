@@ -1,9 +1,10 @@
 {
   "name": "arpgpointclick",
-  "version-string": "1.0.0",
-  "description": "Point-and-click movement, cursor, click pickup and item labels for Skyrim.",
+  "version-string": "1.2.0",
+  "description": "Point-and-click movement, cursor, outlines and item labels for Skyrim.",
   "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
   "dependencies": [
+    "detours",
     "directxmath",
     "directxtk",
     "fmt",

@@ -582,7 +582,7 @@ namespace Game
 			const auto  origin = a_player->GetPosition();
 			const auto* cell = a_player->GetParentCell();
 			const bool  interior = cell && cell->IsInteriorCell();
-			const float radius = std::max(Settings::LabelRadius, Settings::OutlineRadius);
+			const float radius = std::max(Settings::LabelRadius, Settings::OutlineRadius);  // actors, doors and containers; items stop at LabelRadius
 
 			struct Item
 			{
@@ -606,6 +606,8 @@ namespace Game
 
 				Target target;
 				target.handle = a_ref->GetHandle();
+				target.formID = a_ref->GetFormID();
+				target.distance = std::hypot(pos.x - origin.x, pos.y - origin.y);
 
 				if (a_ref->IsActor()) {
 					auto* actor = a_ref->As<RE::Actor>();
@@ -646,7 +648,7 @@ namespace Game
 					target.kind = Kind::kDoor;
 					target.color = kWhite;
 				} else {
-					const float dist = std::hypot(pos.x - origin.x, pos.y - origin.y);
+					const float dist = target.distance;
 					if (dist > Settings::LabelRadius || !ClassifyItem(a_ref, base, target.color)) {
 						return next;
 					}
@@ -675,6 +677,7 @@ namespace Game
 
 			Target self;
 			self.handle = a_player->GetHandle();
+			self.formID = a_player->GetFormID();
 			self.kind = Kind::kPlayer;
 			self.color = kWhite;
 			self.pad = 10.0f;

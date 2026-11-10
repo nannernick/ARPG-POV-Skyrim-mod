@@ -2,6 +2,7 @@
 #include "Cursor.h"
 #include "Game.h"
 #include "Hull.h"
+#include "Outline.h"
 #include "Settings.h"
 
 #include <filesystem>
@@ -327,13 +328,16 @@ namespace Hud
 				}
 			}
 
-			// 4. Draw: outlines, then labels, then the cursor on top.
-			const float thickness = Settings::OutlineThickness;
-			for (std::size_t i = 0; i < shapes.size(); ++i) {
-				const auto& target = *shapes[i].target;
-				const bool  hot = i == hovered;
-				if (hot || AlwaysOutlined(target.kind)) {
-					DrawOutline(list, shapes[i].outline, target.color, hot ? thickness + 1.0f : thickness);
+			// 4. Draw: labels, then the cursor on top. The outlines themselves are drawn around the
+			//    real models by the outline renderer; these simple shapes are only the fallback
+			//    if that renderer couldn't start.
+			if (!Outline::Active()) {
+				for (std::size_t i = 0; i < shapes.size(); ++i) {
+					const auto& target = *shapes[i].target;
+					const bool  hot = i == hovered;
+					if (hot || AlwaysOutlined(target.kind)) {
+						DrawOutline(list, shapes[i].outline, target.color, hot ? 2.5f : 1.5f);
+					}
 				}
 			}
 			for (const auto& label : labels) {
@@ -396,8 +400,10 @@ namespace Hud
 			Checkbox("You and NPCs (white)", &Settings::OutlineNpcs);
 			SameLine();
 			Checkbox("Items", &Settings::OutlineItems);
-			SliderFloat("Line thickness", &Settings::OutlineThickness, 0.5f, 6.0f, "%.1f");
-			SliderFloat("Outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
+			SliderInt("Line thickness", &Settings::OutlineThickness, 1, 8);
+			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
+			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
+			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
 
 			SeparatorText("Item labels");
 			const char* const labelModes[] = { "Only under the cursor", "Always", "While the label key is held" };

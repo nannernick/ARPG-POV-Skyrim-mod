@@ -51,8 +51,9 @@ namespace Settings
 	inline bool  OutlineEnemies = true;    // red
 	inline bool  OutlineNpcs = true;       // white, the player included
 	inline bool  OutlineItems = true;      // the label's colour
-	inline float OutlineThickness = 1.5f;  // pixels
-	inline float OutlineRadius = 4000.0f;  // how far from you actors get an outline
+	inline int   OutlineThickness = 1;        // 1 = thinnest; higher widens the line and its glow
+	inline float OutlineRadius = 3000.0f;     // how far from you actors get an outline
+	inline float OutlineItemRadius = 700.0f;  // how far from you items get an outline (their labels reach further)
 
 	// [Debug]
 	inline bool DebugLog = false;

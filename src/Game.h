@@ -18,9 +18,11 @@ namespace Game
 	struct Target
 	{
 		RE::ObjectRefHandle       handle;
+		RE::FormID                formID{ 0 };
 		std::string               text;                  // items only: the label
 		RE::NiPoint3              pos;                   // label anchor
 		std::vector<RE::NiPoint3> points;                // outermost points; on screen their outline is the outline drawn and the click area
+		float                     distance{ 0.0f };      // from the player, at the last scan
 		float                     pad{ 3.0f };           // how far outside those points the outline sits (Skyrim units)
 		std::uint32_t             color{ 0xFFFFFFFF };   // 0xAABBGGRR
 		Kind                      kind{ Kind::kItem };

@@ -15,7 +15,11 @@ Path of Exile style mouse controls for Skyrim, made for the [Skyrim ARPG Style C
 The cursor shows what a click will do: a **red sword** attacks, a **spilling bag of gold** loots, an **exclamation mark** talks (green) or goes through a door (white), and the white arrow moves. The click point is the sword's tip, or the small pointer beside the bag and the exclamation mark.
 
 ## Outlines
-Enemies get a thin red outline, you and NPCs white, items the colour of their label. Whatever the cursor is on is outlined a little thicker. The outline is a line around the shape of the body or object, not a pixel-exact silhouette.
+Enemies get a red outline, you and NPCs white, nearby items the colour of their label, and whatever the cursor is on is always outlined. These are true outlines that follow the model, limbs and weapons included. They show through walls.
+
+Each outlined thing costs a little. If frames drop in a crowded area, lower the two outline distances in the settings page.
+
+The outline renderer is from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses) by AmazingBuff. ENB and Community Shaders are untested with it.
 
 ## Item labels and loot filter
 Loot near you shows its name. White = gear, blue = enchanted, gold = gold, keys, soul gems, gems and ore, green = potions, cyan = scrolls and spell tomes, red = taking it is stealing. Labels stack instead of overlapping.
@@ -50,12 +54,13 @@ Download **ARPGPointClick-mod** from the latest green run in **Actions**, drag i
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 1 / 1 | Outlines on, and per group |
-| `[Outlines] Thickness` / `Radius` | 1.5 / 4000 | Line thickness (pixels), how far away actors are outlined |
+| `[Outlines] Thickness` / `Radius` / `ItemRadius` | 1 / 3000 / 700 | Line thickness (1-8), how far away actors / items are outlined |
 
 Mouse buttons: 0 = left, 1 = right, 2 = middle, 3+ = side buttons. Keys are DirectX scan codes.
 
 ## Credits
-CommonLibSSE-NG contributors, the SKSE team, meh321 (Address Library), Thiago099 (SKSE Menu Framework), Ershin (True Directional Movement).
+- **AmazingBuff**: the outline renderer (`src/render`, `src/base`), from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses), GPL-3.0
+- CommonLibSSE-NG contributors, the SKSE team, meh321 (Address Library), Thiago099 (SKSE Menu Framework), Ershin (True Directional Movement).
 
 ## License
-GPL-3.0-or-later, as the plugin links CommonLibSSE-NG.
+GPL-3.0-or-later, as the plugin links CommonLibSSE-NG and includes GPL-3.0 code from Highlight Lootable Corpses.

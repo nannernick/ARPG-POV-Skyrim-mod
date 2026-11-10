@@ -4,6 +4,7 @@
 #include "Game.h"
 #include "Hud.h"
 #include "Input.h"
+#include "Outline.h"
 #include "Settings.h"
 
 namespace
@@ -22,6 +23,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			Game::RegisterMenuSink();
+			Outline::Install();
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
 		case SKSE::MessagingInterface::kNewGame:
