@@ -11,6 +11,10 @@ namespace Camera
 	void Toggle();                    // with a HUD message
 	void AdjustPitch(float a_delta);  // clamps, saves, shows a HUD message
 
+	bool IsTargetLocked();       // True Directional Movement's target lock is on
+	void ApplyCameraSettings();  // distance, offsets, wheel zoom and FOV (what 3PCO used to set); after kDataLoaded and on reload
+	void OnFrame();              // main thread, every frame: FOV, and levelling the view on entering first person
+
 	void ApplyGameSettings();  // after kDataLoaded
 	void ApplyPlayerValues();  // after a save loads or a new game starts
 }

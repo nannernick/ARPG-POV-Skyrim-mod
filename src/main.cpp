@@ -29,6 +29,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			Camera::ApplyGameSettings();
+			Camera::ApplyCameraSettings();
 			Game::RegisterMenuSink();
 			Outline::Install();
 			break;

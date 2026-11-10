@@ -39,6 +39,7 @@ namespace Game
 	void Reset();             // a save is loading: drop every target
 
 	bool OnPrimaryButton(RE::ButtonEvent* a_event);  // move/attack button; true = don't let the game attack
+	bool OnAttackEvent(RE::ButtonEvent* a_event);    // every attack/block button event; true = the game must not see it
 	void OnPickupButton();                           // pickup button pressed
 	bool BlockLook();                                // mouse should not turn the camera right now
 	void Toggle();                                   // point-and-click on/off, with a HUD message

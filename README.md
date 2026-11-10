@@ -22,7 +22,7 @@ Coming from the two older mods: your settings don't carry over by themselves. Co
 
 ## Suggested modpack
 - **Base:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604), [MCM Helper](https://www.nexusmods.com/skyrimspecialedition/mods/53000), Pandora Behaviour Engine
-- **Camera:** this mod, [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352), [3PCO](https://www.nexusmods.com/skyrimspecialedition/mods/18515), [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614), [Some Collision Camera](https://www.nexusmods.com/skyrimspecialedition/mods/57864), [Motion Sensitive Fix](https://www.nexusmods.com/skyrimspecialedition/mods/35833)
+- **Camera:** this mod, [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352), [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614), [Some Collision Camera](https://www.nexusmods.com/skyrimspecialedition/mods/57864), [Motion Sensitive Fix](https://www.nexusmods.com/skyrimspecialedition/mods/35833)
 - **Combat:** [Precision](https://www.nexusmods.com/skyrimspecialedition/mods/72347)
 - **Skills and spells:** Ordinator, Apocalypse, [Summermyst](https://www.nexusmods.com/skyrimspecialedition/mods/6285)
 - **Loot:** [Grid Inventory - DiabloRim](https://www.nexusmods.com/skyrimspecialedition/mods/190634), [Socketing](https://www.nexusmods.com/skyrimspecialedition/mods/195740)
@@ -30,7 +30,7 @@ Coming from the two older mods: your settings don't carry over by themselves. Co
 Run Pandora, then launch with `skse64_loader.exe`.
 
 ## Camera mod settings required
-**3PCO:** FOV 90, camera speed 0, min/max zoom 600. Every offset and zoom 0 in Sheathed, Melee, Ranged and Sneak. Auto 3rd/1st person, crosshair, Ranged Cam and Magic is Ranged all off. The four Sneak toggles off.
+**Camera distance and view:** built in (it replaces 3PCO, which is no longer needed). Defaults: distance 600, field of view 90, no shoulder offsets, mouse-wheel zoom off. Change them under Camera in the menu or `[Camera]` in the INI. If you keep 3PCO installed, set `Manage = 0` so the two don't fight.
 
 **True Directional Movement:** directional movement on, Auto Adjust Camera off, target lock pitch/yaw adjust speed at minimum. Reset Camera with Target Lock on, Reset Camera Pitch off. Lock on before using magic or bows.
 
@@ -38,6 +38,9 @@ Run Pandora, then launch with `skse64_loader.exe`.
 - **Left click** the ground: move there. Hold it to keep following the cursor.
 - **Left click** an enemy: turn to it and attack. **Shift + left click** attacks toward the cursor without moving.
 - **Left click** an item or its label: pick it up. A door: go through it. An NPC: talk. A chest or corpse: loot it. If it's out of reach, you walk over first.
+- **Left click never triggers the game's own left-click action** while the cursor is live, whichever hand it's bound to. It must stay bound to an attack (left or right) for the plugin to see it.
+- **Auto-attack:** while True Directional Movement's target lock is on, press your attack button once to keep attacking; press it again to stop. Melee only.
+- **First person:** the camera lock and the cursor switch off; the view is levelled once on entering.
 - **Middle mouse (mouse 3)** does the same as a left click on things, and never attacks or moves.
 - **WASD** still works and cancels a click-move.
 - **F7:** point and click on/off (off = normal WASD and mouse look).
@@ -111,6 +114,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Lock on at game start |
 | `LockPitch` / `Pitch` | 1 / 30 | Lock the angle, degrees looking down |
 | `LockYaw` / `Yaw` | 0 / 45 | Lock the compass direction (0 = north) |
+| `Manage` / `Distance` / `Fov` / `OffsetX` / `OffsetZ` / `WheelZoom` | 1 / 600 / 90 / 0 / 0 / 0 | Camera distance, field of view, shoulder offsets, mouse-wheel zoom (replaces 3PCO) |
 | `FixInteriorRooms` | 1 | Draw your room when the camera is above the ceiling |
 | `PauseOnTargetLock` | 0 | Let TDM hold the camera while locked on |
 | `PitchMode` / `InvertPitch` | 0 / 0 | Leave at 0 unless the camera looks up |
@@ -138,7 +142,7 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Splitter on/off |
 | `InteriorOnly` | 1 | Only split indoors |
 | `Height` | 220 | Cut height above the floor (a human is ~128) |
-| `Slope` | 1 | How fast the cut rises behind you, so far walls stay (0 = flat) |
+| `Slope` | 0 | Automatic style only: how fast the cut rises behind you (0 = flat). Diablo style is always flat |
 | `AutoLift` | 0 | Starting style: 0 = Diablo style, 1 = Automatic (experimental) |
 | `StyleKey` | 0x43 (F9) | Switch style |
 | `ClearDelay` / `LiftMax` | 0.75 / 600 | Automatic: seconds of clear view before it lifts, how far it lifts |
@@ -180,7 +184,8 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
 | `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` | 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, current/max above each globe |
-| `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 0 / 0 | Outlines on, and per group (hovered things always glow) |
+| `[Outlines] Enabled` / `Enemies` / `NPCs` / `Player` / `Items` | 1 / 1 / 0 / 1 / 0 | Outlines on, and per group (hovered things always glow) |
+| `[Combat] AutoAttack` | 1 | While locked on, the attack button starts and stops auto-attack |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |
 | `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline or label |

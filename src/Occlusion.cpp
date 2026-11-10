@@ -231,6 +231,50 @@ namespace Occlusion
 			g_fogBackups.clear();
 		}
 
+		void Blacken(RE::INTERIOR_DATA* a_data)
+		{
+			a_data->fogColorNear.red = 0;
+			a_data->fogColorNear.green = 0;
+			a_data->fogColorNear.blue = 0;
+			a_data->fogColorFar.red = 0;
+			a_data->fogColorFar.green = 0;
+			a_data->fogColorFar.blue = 0;
+		}
+
+		bool IsBlack(const RE::INTERIOR_DATA* a_data)
+		{
+			return a_data->fogColorNear.red == 0 && a_data->fogColorNear.green == 0 && a_data->fogColorNear.blue == 0 &&
+			       a_data->fogColorFar.red == 0 && a_data->fogColorFar.green == 0 && a_data->fogColorFar.blue == 0;
+		}
+
+		void BackupAndBlacken(RE::INTERIOR_DATA* a_data);
+
+		// Caves and dungeons blend their fog between rooms and lighting templates, which brings
+		// the cell's own colour back after it was blackened on entry. So every frame: blacken the
+		// cell's data again if it changed, and the fog the renderer is using right now.
+		void KeepFogBlack(RE::TESObjectCELL* a_cell)
+		{
+			if (!Settings::BlackFog || !a_cell || !a_cell->IsInteriorCell()) {
+				return;
+			}
+			auto* lighting = a_cell->GetLighting();
+			auto* tmpl = a_cell->GetRuntimeData().lightingTemplate;
+			if (lighting && !IsBlack(lighting)) {
+				BackupAndBlacken(lighting);
+				Blacken(lighting);
+			}
+			if (tmpl && !IsBlack(&tmpl->data)) {
+				BackupAndBlacken(&tmpl->data);
+				Blacken(&tmpl->data);
+			}
+			if (auto* scene = RE::BSShaderManager::State::GetSingleton().shadowSceneNode[0]) {
+				if (auto& fog = scene->GetRuntimeData().fogProperty; fog) {
+					fog->nearColor = RE::NiColor{ 0.0f, 0.0f, 0.0f };
+					fog->farColor = RE::NiColor{ 0.0f, 0.0f, 0.0f };
+				}
+			}
+		}
+
 		void BackupAndBlacken(RE::INTERIOR_DATA* a_data)
 		{
 			if (!a_data) {
@@ -480,6 +524,7 @@ namespace Occlusion
 			if (!cell) {
 				return;
 			}
+			KeepFogBlack(cell);
 			SetSkyHidden(Settings::HideSky && cell->IsInteriorCell());
 			if (Settings::InteriorOnly && !cell->IsInteriorCell()) {
 				RestoreShapes();
@@ -576,7 +621,7 @@ namespace Occlusion
 					if (aLen > 1.0f) {
 						params.ax = ax / aLen;
 						params.ay = ay / aLen;
-						params.slope = Settings::CutSlope;
+						params.slope = g_autoLift ? Settings::CutSlope : 0.0f;  // Diablo style is always a flat cut
 					}
 					Cut::Publish(params, feet, camPos);
 

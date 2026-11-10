@@ -8,11 +8,6 @@ namespace Input
 {
 	namespace
 	{
-		bool IsMoveButton(const RE::ButtonEvent* a_event)
-		{
-			return a_event && a_event->GetDevice() == RE::INPUT_DEVICE::kMouse && a_event->GetIDCode() == Settings::MoveButton;
-		}
-
 		// Runtime 1.7.99 added two functions to the front of every input handler's table,
 		// which pushes the ones hooked here two slots down.
 		std::size_t HandlerSlot(std::size_t a_slot)
@@ -25,7 +20,7 @@ namespace Input
 		{
 			static void thunk(RE::AttackBlockHandler* a_this, RE::ButtonEvent* a_event, RE::PlayerControlsData* a_data)
 			{
-				if (IsMoveButton(a_event) && Game::OnPrimaryButton(a_event)) {
+				if (Game::OnAttackEvent(a_event)) {
 					return;
 				}
 				func(a_this, a_event, a_data);
@@ -260,6 +255,7 @@ namespace Input
 		}
 		Occlusion::RestoreAll();  // re-reads cell overrides, fog and sky on the next frame
 		Camera::ApplyGameSettings();
+		Camera::ApplyCameraSettings();
 		Camera::ApplyPlayerValues();
 		Game::RefreshGameplay();  // point and click may have been switched on or off
 	}

@@ -16,6 +16,13 @@ namespace Settings
 	inline bool          InvertPitch = false;
 	inline bool          PauseOnTargetLock = false;   // let TDM hold the camera while target lock is active
 	inline bool          FixInteriorRooms = true;     // draw the player's room even if the camera is outside it
+	// What 3PCO used to do: a fixed camera distance, no shoulder offsets, a set field of view.
+	inline bool          ManageCamera = true;         // apply the five values below (off = leave the camera to the game or another mod)
+	inline float         CameraDistance = 600.0f;     // how far the camera sits from you
+	inline float         CameraFov = 90.0f;           // field of view, degrees
+	inline float         CameraOffsetX = 0.0f;        // sideways shoulder offset (0 = centred)
+	inline float         CameraOffsetZ = 0.0f;        // height offset
+	inline bool          WheelZoom = false;           // mouse wheel zooms (and can scroll into first person)
 	inline float         PitchStep = 5.0f;
 	inline std::uint32_t CameraToggleKey = 0x44;      // F10
 	inline std::uint32_t PitchUpKey = 0x49;           // Page Up
@@ -39,7 +46,7 @@ namespace Settings
 	inline float         CutHeight = 220.0f;          // cut height above the floor at the player
 	inline float         CutRadius = 2500.0f;         // selective cut only
 	inline bool          CutAllGeometry = true;       // every main-camera mesh uses the cut projection (consistent depth)
-	inline float         CutSlope = 1.0f;             // how fast the cut rises behind you (1 = 45 deg, 0 = flat)
+	inline float         CutSlope = 0.0f;             // how fast the cut rises behind you (1 = 45 deg, 0 = flat)
 	inline float         ReanchorDistance = 150.0f;   // cut height only moves if you stand this far above/below it...
 	inline float         ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
 	inline float         HeightSmoothing = 0.6f;      // seconds every height change eases in over (0 = instant)
@@ -121,6 +128,9 @@ namespace Settings
 	inline bool          ShowBooks = false;           // loot filter: books and notes (spell tomes always show)
 	inline bool          ShowClutter = false;         // loot filter: junk (kettles, buckets, torches...)
 
+	// [Combat]
+	inline bool  AutoAttack = true;        // while locked on (TDM), the attack button starts attacking by itself; press again to stop
+
 	// [Globes]
 	inline bool  Globes = true;            // Path of Exile style life and mana globes, stamina bar on the life globe
 	inline bool  HideVanillaBars = true;   // hide the game's health, magicka and stamina bars while the globes are on
@@ -130,7 +140,8 @@ namespace Settings
 	// [Outlines]
 	inline bool  Outlines = true;
 	inline bool  OutlineEnemies = true;    // red
-	inline bool  OutlineNpcs = false;      // NPCs green, you white (off: only when hovered)
+	inline bool  OutlineNpcs = false;      // NPCs green (off: only when hovered)
+	inline bool  OutlinePlayer = true;     // you, white
 	inline bool  OutlineItems = false;     // the label's colour (off: only when hovered)
 	inline int   OutlineThickness = 3;        // glow size: 1 = a thin line; higher widens the line and its glow
 	inline float OutlineOpacity = 0.6f;       // how strong the glow is (1 = solid)

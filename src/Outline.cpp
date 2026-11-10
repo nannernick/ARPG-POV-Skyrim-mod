@@ -25,6 +25,7 @@ namespace Outline
 		// Each outlined thing costs a few draw calls, so there's a ceiling. Nearest and most
 		// important first (see Priority).
 		constexpr std::size_t kMaxTargets = 64;
+		constexpr float       kDepthMargin = 40.0f;  // Skyrim units
 		constexpr std::size_t kMaxGeometries = Max_Render_Geometries_Per_Frame;
 
 		std::atomic<bool> g_hooked{ false };
@@ -59,8 +60,9 @@ namespace Outline
 			case Game::Kind::kEnemy:
 				return Settings::OutlineEnemies && a_target.distance <= Settings::OutlineRadius;
 			case Game::Kind::kNpc:
-			case Game::Kind::kPlayer:
 				return Settings::OutlineNpcs && a_target.distance <= Settings::OutlineRadius;
+			case Game::Kind::kPlayer:
+				return Settings::OutlinePlayer;
 			case Game::Kind::kItem:
 				return Settings::OutlineItems && a_target.distance <= Settings::OutlineItemRadius;
 			default:
@@ -289,6 +291,9 @@ namespace Outline
 
 				auto& cache = RenderGeometryCache::instance();
 				cache.drain_invalidations();
+				if (_behind.size() > 1024) {
+					_behind.clear();
+				}
 				if (_counts.size() > 1024) {
 					_counts.clear();
 				}
@@ -367,8 +372,22 @@ namespace Outline
 					}
 					colors.push_back(entry.color);
 					geometries.push_back(std::move(group));
+					// In front or behind is decided with a margin and then kept, so something at about
+					// the player's depth doesn't flip between the two from frame to frame.
 					const bool isPlayer = player && entry.formID == player->GetFormID();
-					behind.push_back(!isPlayer && playerDepth > 0.0f && eye.GetDistance(entry.centre) > playerDepth ? 1 : 0);
+					bool       isBehind = false;
+					if (!isPlayer && playerDepth > 0.0f) {
+						const float depth = eye.GetDistance(entry.centre);
+						const auto  it = _behind.find(entry.formID);
+						isBehind = it != _behind.end() ? it->second : depth > playerDepth;
+						if (depth > playerDepth + kDepthMargin) {
+							isBehind = true;
+						} else if (depth < playerDepth - kDepthMargin) {
+							isBehind = false;
+						}
+						_behind[entry.formID] = isBehind;
+					}
+					behind.push_back(isBehind ? 1 : 0);
 					++index;
 				}
 
@@ -389,7 +408,8 @@ namespace Outline
 			std::uint32_t                               _lastFrame{ std::numeric_limits<std::uint32_t>::max() };
 			std::unique_ptr<CommonStates>               _states;
 			Mask::MaskOverlay                           _mask;
-			std::unordered_map<RE::FormID, std::size_t> _counts;  // model part count when each target was last collected
+			std::unordered_map<RE::FormID, std::size_t> _counts;
+			std::unordered_map<RE::FormID, bool> _behind;  // per target: currently behind the player  // model part count when each target was last collected
 			bool                                        _ready{ false };
 		};
 

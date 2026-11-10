@@ -120,8 +120,9 @@ namespace Hud
 			case Game::Kind::kEnemy:
 				return Settings::OutlineEnemies;
 			case Game::Kind::kNpc:
-			case Game::Kind::kPlayer:
 				return Settings::OutlineNpcs;
+			case Game::Kind::kPlayer:
+				return Settings::OutlinePlayer;
 			case Game::Kind::kItem:
 				return Settings::OutlineItems;
 			default:
@@ -400,6 +401,10 @@ namespace Hud
 			SliderFloat("Globe size", &Settings::GlobeSize, 0.5f, 2.0f, "%.2f");
 			Checkbox("Numbers above the globes", &Settings::GlobeNumbers);
 
+			SeparatorText("Combat");
+			Checkbox("Auto-attack while locked on", &Settings::AutoAttack);
+			Hint("While True Directional Movement's target lock is on, press your attack button once to keep attacking. Press it again to stop. Melee only.");
+
 			SeparatorText("Movement");
 			Checkbox("Hold to keep moving", &Settings::HoldToMove);
 			SliderFloat("Stop distance", &Settings::ArriveRadius, 5.0f, 200.0f, "%.0f");
@@ -422,7 +427,8 @@ namespace Hud
 			Hint("Off: only the thing under the cursor is outlined.");
 			Checkbox("Enemies (red)", &Settings::OutlineEnemies);
 			SameLine();
-			Checkbox("NPCs (green) and you (white)", &Settings::OutlineNpcs);
+			Checkbox("NPCs (green)", &Settings::OutlineNpcs);
+			Checkbox("Your character (white)", &Settings::OutlinePlayer);
 			SameLine();
 			Checkbox("Items", &Settings::OutlineItems);
 			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);

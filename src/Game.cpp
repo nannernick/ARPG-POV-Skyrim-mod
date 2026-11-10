@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Camera.h"
 #include "Globes.h"
 #include "Hud.h"
 #include "Settings.h"
@@ -16,6 +17,10 @@ namespace Game
 		};
 
 		Primary             g_primary = Primary::kNone;
+		Primary             g_lastMode = Primary::kNone;  // what the move button's current press is doing
+		bool                g_auto = false;         // auto-attack is running
+		bool                g_autoSwallow = false;  // the attack press that switched it is hidden from the game
+		float               g_autoTimer = 0.0f;
 		bool                g_primaryHeld = false;
 		bool                g_moving = false;
 		bool                g_stickSent = false;  // our last stick input was non-zero
@@ -729,9 +734,58 @@ namespace Game
 		// -----------------------------------------------------------------------
 		// Per frame
 		// -----------------------------------------------------------------------
+		// Melee in the right hand (or fists): the only thing auto-attack swings.
+		bool CanAutoAttack(RE::PlayerCharacter* a_player)
+		{
+			const auto* form = a_player->GetEquippedObject(false);
+			if (!form) {
+				return true;
+			}
+			const auto* weapon = form->As<RE::TESObjectWEAP>();
+			return weapon && !weapon->IsBow() && !weapon->IsCrossbow() && !weapon->IsStaff();
+		}
+
+		void StopAutoAttack(const char* a_message)
+		{
+			if (g_auto && a_message) {
+				RE::SendHUDMessage::ShowHUDMessage(a_message);
+			}
+			g_auto = false;
+		}
+
+		// While it's on and the lock holds, start a new swing whenever the last one has finished.
+		void AutoAttack(RE::PlayerCharacter* a_player, float a_delta)
+		{
+			if (!g_auto) {
+				return;
+			}
+			if (!Settings::AutoAttack || !Camera::IsTargetLocked() || a_player->IsDead() || !CanAutoAttack(a_player)) {
+				StopAutoAttack("Auto-attack: OFF");
+				return;
+			}
+			g_autoTimer -= a_delta;
+			if (g_autoTimer > 0.0f) {
+				return;
+			}
+			g_autoTimer = 0.1f;
+			auto* state = a_player->AsActorState();
+			if (!state->IsWeaponDrawn()) {
+				a_player->DrawWeaponMagicHands(true);
+				g_autoTimer = 0.5f;
+				return;
+			}
+			if (state->GetAttackState() == RE::ATTACK_STATE_ENUM::kNone) {
+				a_player->NotifyAnimationGraph("attackStart");
+			}
+		}
+
 		void Tick(RE::PlayerCharacter* a_player, float a_delta)
 		{
 			RefreshGameplay();
+			Camera::OnFrame();
+			if (State::gameplay.load()) {
+				AutoAttack(a_player, a_delta);
+			}
 			if (!State::gameplay.load()) {
 				Halt();
 				g_primary = Primary::kNone;
@@ -976,6 +1030,9 @@ namespace Game
 		g_pending = {};
 		g_stickSent = false;
 		g_primary = Primary::kNone;
+		g_lastMode = Primary::kNone;
+		g_auto = false;
+		g_autoSwallow = false;
 		g_primaryHeld = false;
 		g_faceTime = 0.0f;
 		g_scanTimer = 0.0f;
@@ -1023,6 +1080,7 @@ namespace Game
 		}
 
 		const auto mode = g_primary;
+		g_lastMode = mode;
 		if (a_event->IsUp()) {
 			g_primary = Primary::kNone;
 			g_primaryHeld = false;
@@ -1043,6 +1101,59 @@ namespace Game
 		if (Hovered(hovered, kind) && kind != Kind::kEnemy) {
 			Interact(hovered, player);
 		}
+	}
+
+	bool OnAttackEvent(RE::ButtonEvent* a_event)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		auto* events = RE::UserEvents::GetSingleton();
+		if (!a_event || !player || !events) {
+			return false;
+		}
+		const bool moveButton = a_event->GetDevice() == RE::INPUT_DEVICE::kMouse && a_event->GetIDCode() == Settings::MoveButton;
+
+		if (moveButton) {
+			if (OnPrimaryButton(a_event)) {
+				return true;  // moving, or it used something
+			}
+			if (!State::gameplay.load()) {
+				return false;  // point and click is off: the button does what the game has it bound to
+			}
+			// The cursor is live. A click on an enemy (or attack-in-place) is always a right-hand attack,
+			// whichever hand the button is bound to; anything else does nothing in the game.
+			if (g_lastMode == Primary::kAttack) {
+				if (auto* id = a_event->AsIDEvent()) {
+					id->userEvent = events->rightAttack;
+				}
+				return false;
+			}
+			return true;
+		}
+
+		// The attack button (right hand), on any other button: while locked on, a press starts
+		// auto-attack and the next press stops it. Those presses never reach the game.
+		if (Settings::AutoAttack && a_event->QUserEvent() == events->rightAttack) {
+			if (a_event->IsDown()) {
+				g_autoSwallow = false;
+				if (g_auto) {
+					StopAutoAttack("Auto-attack: OFF");
+					g_autoSwallow = true;
+				} else if (State::gameplay.load() && Camera::IsTargetLocked() && CanAutoAttack(player)) {
+					g_auto = true;
+					g_autoTimer = 0.0f;
+					g_autoSwallow = true;
+					RE::SendHUDMessage::ShowHUDMessage("Auto-attack: ON");
+				}
+				return g_autoSwallow;
+			}
+			if (g_autoSwallow) {
+				if (a_event->IsUp()) {
+					g_autoSwallow = false;
+				}
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool BlockLook()

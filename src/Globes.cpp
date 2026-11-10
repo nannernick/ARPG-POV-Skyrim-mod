@@ -102,7 +102,7 @@ namespace Globes
 
 		// One globe: a dark glass ball in a metal rim, filled to a_fill (0..1).
 		void Globe(ImDrawList* a_list, ImFont* a_font, ImVec2 a_centre, float a_radius, float a_fill, float a_trail, const Colours& a_colours,
-			const Value& a_value, float a_scale)
+			const Value& a_value, float a_scale, const char* a_name)
 		{
 			const float r = a_radius;
 			// Rim and empty glass.
@@ -131,7 +131,7 @@ namespace Globes
 			ImDrawListManager::AddCircle(a_list, a_centre, r + 7.0f * a_scale, Rgba(60, 45, 28, 255), 64, 1.5f * a_scale);
 
 			if (Settings::GlobeNumbers) {
-				const auto text = std::format("{:.0f}/{:.0f}", std::ceil(a_value.current.load()), a_value.max.load());
+				const auto text = std::format("{} {:.0f}/{:.0f}", a_name, std::ceil(a_value.current.load()), a_value.max.load());
 				Text(a_list, a_font, 17.0f * a_scale, ImVec2{ a_centre.x, a_centre.y - r - 18.0f * a_scale }, text);
 			}
 		}
@@ -210,8 +210,8 @@ namespace Globes
 
 		const Colours red{ Rgba(105, 8, 8, 240), Rgba(175, 22, 18, 235), Rgba(240, 90, 70, 220), Rgba(200, 160, 140, 110) };
 		const Colours blue{ Rgba(10, 25, 110, 240), Rgba(30, 70, 190, 235), Rgba(110, 160, 255, 220), Rgba(160, 175, 220, 110) };
-		Globe(a_list, a_font, life, r, std::clamp(s_health.fill, 0.0f, 1.0f), std::clamp(s_health.trail, 0.0f, 1.0f), red, g_health, scale);
-		Globe(a_list, a_font, mana, r, std::clamp(s_magicka.fill, 0.0f, 1.0f), std::clamp(s_magicka.trail, 0.0f, 1.0f), blue, g_magicka, scale);
+		Globe(a_list, a_font, life, r, std::clamp(s_health.fill, 0.0f, 1.0f), std::clamp(s_health.trail, 0.0f, 1.0f), red, g_health, scale, "Health");
+		Globe(a_list, a_font, mana, r, std::clamp(s_magicka.fill, 0.0f, 1.0f), std::clamp(s_magicka.trail, 0.0f, 1.0f), blue, g_magicka, scale, "Mana");
 
 		// Stamina: a curved bar hugging the right side of the life globe, filling bottom to top.
 		const float bar = r + 15.0f * scale;
@@ -223,6 +223,13 @@ namespace Globes
 		if (stamina > 0.005f) {
 			Arc(a_list, life, bar, bottom, bottom + (top - bottom) * stamina, Rgba(70, 160, 60, 240), thick);
 			Arc(a_list, life, bar - thick * 0.25f, bottom, bottom + (top - bottom) * stamina, Rgba(150, 220, 110, 120), thick * 0.3f);
+		}
+		if (Settings::GlobeNumbers) {
+			// Beside the bar, level with the bottom of the life globe.
+			const auto  text = std::format("Stamina {:.0f}/{:.0f}", std::ceil(g_stamina.current.load()), g_stamina.max.load());
+			const float size = 17.0f * scale;
+			const float width = CalcTextSize(text.c_str()).x * size / std::max(GetFontSize(), 1.0f);
+			Text(a_list, a_font, size, ImVec2{ life.x + bar + 14.0f * scale + width * 0.5f, life.y + r * 0.62f }, text);
 		}
 	}
 }

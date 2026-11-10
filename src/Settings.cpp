@@ -135,6 +135,12 @@ namespace Settings
 		InvertPitch = GetBool(ini, "Camera.InvertPitch", InvertPitch);
 		PauseOnTargetLock = GetBool(ini, "Camera.PauseOnTargetLock", PauseOnTargetLock);
 		FixInteriorRooms = GetBool(ini, "Camera.FixInteriorRooms", FixInteriorRooms);
+		ManageCamera = GetBool(ini, "Camera.Manage", ManageCamera);
+		CameraDistance = GetFloat(ini, "Camera.Distance", CameraDistance, 100.0f, 3000.0f);
+		CameraFov = GetFloat(ini, "Camera.Fov", CameraFov, 30.0f, 120.0f);
+		CameraOffsetX = GetFloat(ini, "Camera.OffsetX", CameraOffsetX, -300.0f, 300.0f);
+		CameraOffsetZ = GetFloat(ini, "Camera.OffsetZ", CameraOffsetZ, -300.0f, 300.0f);
+		WheelZoom = GetBool(ini, "Camera.WheelZoom", WheelZoom);
 		PitchStep = GetFloat(ini, "Camera.PitchStep", PitchStep, 0.5f, 45.0f);
 		CameraToggleKey = GetKey(ini, "Camera.ToggleKey", CameraToggleKey);
 		PitchUpKey = GetKey(ini, "Camera.PitchUpKey", PitchUpKey);
@@ -242,6 +248,7 @@ namespace Settings
 		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
 		ShowClutter = GetBool(ini, "Labels.ShowClutter", ShowClutter);
 
+		AutoAttack = GetBool(ini, "Combat.AutoAttack", AutoAttack);
 		Globes = GetBool(ini, "Globes.Enabled", Globes);
 		HideVanillaBars = GetBool(ini, "Globes.HideVanillaBars", HideVanillaBars);
 		GlobeSize = GetFloat(ini, "Globes.Size", GlobeSize, 0.5f, 2.0f);
@@ -249,6 +256,7 @@ namespace Settings
 		Outlines = GetBool(ini, "Outlines.Enabled", Outlines);
 		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
 		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
+		OutlinePlayer = GetBool(ini, "Outlines.Player", OutlinePlayer);
 		OutlineItems = GetBool(ini, "Outlines.Items", OutlineItems);
 		OutlineThickness = GetInt(ini, "Outlines.Thickness", OutlineThickness, 1, 8);
 		OutlineOpacity = GetFloat(ini, "Outlines.Opacity", OutlineOpacity, 0.05f, 1.0f);
@@ -288,6 +296,10 @@ namespace Settings
 			<< std::format("PauseOnTargetLock = {}\n", b(PauseOnTargetLock))
 			<< "; Indoors, draw the room you're in even when the camera is above the ceiling.\n"
 			<< std::format("FixInteriorRooms = {}\n", b(FixInteriorRooms))
+			<< "; Replaces 3PCO. Manage = 1 applies: Distance from you, Fov in degrees, shoulder offsets (0 = centred),\n"
+			<< "; and WheelZoom (0 = the mouse wheel does not zoom; use the change-view key for first person).\n"
+			<< std::format("Manage = {}\nDistance = {}\nFov = {}\nOffsetX = {}\nOffsetZ = {}\nWheelZoom = {}\n", b(ManageCamera), CameraDistance, CameraFov,
+				   CameraOffsetX, CameraOffsetZ, b(WheelZoom))
 			<< "; Keys: 0x44 = F10, 0x49 = Page Up, 0x51 = Page Down, 0x42 = F8. 0 = no key.\n"
 			<< std::format("ToggleKey = {:#x}\nPitchUpKey = {:#x}\nPitchDownKey = {:#x}\nPitchStep = {}\nReloadKey = {:#x}\n",
 				   CameraToggleKey, PitchUpKey, PitchDownKey, PitchStep, ReloadKey)
@@ -310,7 +322,8 @@ namespace Settings
 
 		out << "[Cut]\n"
 			<< "; Cut height above the floor at your position, and how fast it rises behind you\n"
-			<< "; (1 = 45 deg, 0 = flat; clamped automatically to keep the floor on screen).\n"
+			<< "; (1 = 45 deg, 0 = flat; clamped automatically to keep the floor on screen). Slope only applies to the\n"
+			<< "; Automatic style: Diablo style always cuts flat.\n"
 			<< std::format("Height = {}\nSlope = {}\n", CutHeight, CutSlope)
 			<< "; 1 = every mesh uses the cut projection so depth stays consistent.\n"
 			<< std::format("AllGeometry = {}\nRadius = {}\n", b(CutAllGeometry), CutRadius)
@@ -391,6 +404,11 @@ namespace Settings
 		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
 			b(ShowClutter));
 
+		out << "[Combat]\n";
+		out << "; While locked on (True Directional Movement), pressing your attack button starts attacking by itself.\n";
+		out << "; Press it again to stop. Melee only.\n";
+		out << std::format("AutoAttack = {}\n\n", b(AutoAttack));
+
 		out << "[Globes]\n";
 		out << "; Life and mana globes (Path of Exile style), stamina as a bar on the life globe. HideVanillaBars hides the game's bars.\n";
 		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\n\n", b(Globes), b(HideVanillaBars), GlobeSize, b(GlobeNumbers));
@@ -398,7 +416,8 @@ namespace Settings
 		out << "[Outlines]\n";
 		out << "; True outlines around the model: red = enemies, green = NPCs, white = you, items = their label colour.\n";
 		out << "; Whatever the cursor is on is always outlined.\n";
-		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlineItems));
+		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nPlayer = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlinePlayer),
+			b(OutlineItems));
 		out << "; Thickness = glow size, 1 (a thin line) to 8. Opacity = how strong the glow is. Brightness = how bright\n";
 		out << "; its colours are (lower = darker). Fade = outlines get fainter with distance.\n";
 		out << std::format("Thickness = {}\nOpacity = {}\nBrightness = {}\nFade = {}\n", OutlineThickness, OutlineOpacity, OutlineBrightness, b(OutlineFade));

@@ -70,6 +70,24 @@ namespace Menu
 			EndDisabled();
 			SliderFloat("Pitch key step", &Settings::PitchStep, 1.0f, 15.0f, "%.0f");
 
+			SeparatorText("Distance and view (replaces 3PCO)");
+			bool managed = false;
+			managed |= Checkbox("Manage the camera", &Settings::ManageCamera);
+			Hint("Sets the distance, offsets, zoom and field of view below. Turn off to leave them to the game or another camera mod.");
+			BeginDisabled(!Settings::ManageCamera);
+			managed |= SliderFloat("Distance", &Settings::CameraDistance, 100.0f, 2000.0f, "%.0f");
+			managed |= SliderFloat("Field of view", &Settings::CameraFov, 30.0f, 120.0f, "%.0f");
+			managed |= SliderFloat("Sideways offset", &Settings::CameraOffsetX, -300.0f, 300.0f, "%.0f");
+			managed |= SliderFloat("Height offset", &Settings::CameraOffsetZ, -300.0f, 300.0f, "%.0f");
+			managed |= Checkbox("Mouse wheel zooms", &Settings::WheelZoom);
+			Hint("Off: the wheel does nothing and the distance stays fixed. Use the change-view key for first person.");
+			EndDisabled();
+			if (managed) {
+				if (auto* tasks = SKSE::GetTaskInterface()) {
+					tasks->AddTask([] { Camera::ApplyCameraSettings(); });
+				}
+			}
+
 			SeparatorText("Compatibility");
 			Checkbox("Fix interior rooms", &Settings::FixInteriorRooms);
 			Hint("Indoors, draw the room you're in even when the camera is above the ceiling.");
@@ -97,7 +115,10 @@ namespace Menu
 			SeparatorText("Cut shape");
 			SliderFloat("Height", &Settings::CutHeight, 50.0f, 800.0f, "%.0f");
 			Hint("How far above the floor walls are cut (a human is ~128).");
+			BeginDisabled(!Occlusion::GetAutoLift());
 			SliderFloat("Slope behind you", &Settings::CutSlope, 0.0f, 3.0f, "%.2f");
+			EndDisabled();
+			Hint("Automatic style only. Diablo style always uses a flat cut.");
 			Hint("How fast the cut rises away from the camera, so far walls stay. 0 = flat.");
 
 			SeparatorText("Height changes");

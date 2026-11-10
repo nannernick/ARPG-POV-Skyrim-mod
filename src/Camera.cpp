@@ -164,6 +164,80 @@ namespace Camera
 		};
 	}
 
+	bool IsTargetLocked()
+	{
+		return IsTargetLocked(RE::PlayerCharacter::GetSingleton());
+	}
+
+	// The engine's own camera settings (Skyrim.ini [Camera] / [Display]). 3PCO set these; now this does.
+	void ApplyCameraSettings()
+	{
+		if (!Settings::ManageCamera) {
+			return;
+		}
+		auto* ini = RE::INISettingCollection::GetSingleton();
+		auto* prefs = RE::INIPrefSettingCollection::GetSingleton();
+		static std::unordered_map<std::string, float> s_original;  // the game's values, for WheelZoom = 1
+
+		const auto set = [&](const char* a_name, float a_value) {
+			RE::Setting* setting = ini ? ini->GetSetting(a_name) : nullptr;
+			if (!setting && prefs) {
+				setting = prefs->GetSetting(a_name);
+			}
+			if (!setting || setting->GetType() != RE::Setting::Type::kFloat) {
+				logs::warn("[camera] engine setting {} not found", a_name);
+				return;
+			}
+			s_original.try_emplace(a_name, setting->data.f);
+			setting->data.f = a_value;
+		};
+		const auto restore = [&](const char* a_name) {
+			if (const auto it = s_original.find(a_name); it != s_original.end()) {
+				set(a_name, it->second);
+			}
+		};
+
+		// Same nearest and furthest distance = one fixed distance.
+		set("fVanityModeMinDist:Camera", Settings::CameraDistance);
+		set("fVanityModeMaxDist:Camera", Settings::CameraDistance);
+		// The same offsets sheathed and in combat, so drawing a weapon doesn't shift the view.
+		set("fOverShoulderPosX:Camera", Settings::CameraOffsetX);
+		set("fOverShoulderPosZ:Camera", Settings::CameraOffsetZ);
+		set("fOverShoulderCombatPosX:Camera", Settings::CameraOffsetX);
+		set("fOverShoulderCombatPosZ:Camera", Settings::CameraOffsetZ);
+		set("fOverShoulderCombatAddY:Camera", 0.0f);
+		if (Settings::WheelZoom) {
+			restore("fMouseWheelZoomSpeed:Camera");
+			restore("fMouseWheelZoomIncrement:Camera");
+		} else {
+			set("fMouseWheelZoomSpeed:Camera", 0.0f);
+			set("fMouseWheelZoomIncrement:Camera", 0.0f);
+		}
+		set("fDefaultWorldFOV:Display", Settings::CameraFov);
+		logs::info("[camera] managed: distance={} fov={} offset=({}, {}) wheelZoom={}", Settings::CameraDistance, Settings::CameraFov,
+			Settings::CameraOffsetX, Settings::CameraOffsetZ, Settings::WheelZoom);
+	}
+
+	void OnFrame()
+	{
+		auto* camera = RE::PlayerCamera::GetSingleton();
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!camera || !player) {
+			return;
+		}
+		if (Settings::ManageCamera) {
+			camera->GetRuntimeData2().worldFOV = Settings::CameraFov;
+		}
+		// The lock only runs in third person, but it leaves the view tilted down. Entering first
+		// person, level it once; after that the mouse looks around freely.
+		static bool s_first = false;
+		const bool  first = camera->IsInFirstPerson();
+		if (first && !s_first && g_active && Settings::LockPitch) {
+			player->data.angle.x = 0.0f;
+		}
+		s_first = first;
+	}
+
 	void Install()
 	{
 		g_active = Settings::CameraEnabled;
