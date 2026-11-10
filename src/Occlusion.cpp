@@ -42,6 +42,15 @@ namespace Occlusion
 		std::unordered_map<RE::NiAVObject*, HiddenEntry> g_hidden;
 		std::unordered_set<RE::FormID>                  g_loggedRefs;
 		std::vector<FogBackup>                          g_fogBackups;
+
+		// Interiors that show the sky take their fog and background colour from the weather.
+		struct WeatherBackup
+		{
+			RE::TESWeather* weather{ nullptr };
+			RE::Color       nearColor[RE::TESWeather::ColorTime::kTotal]{};
+			RE::Color       farColor[RE::TESWeather::ColorTime::kTotal]{};
+		};
+		std::vector<WeatherBackup> g_weatherBackups;
 		RE::TESObjectCELL*                              g_lastCell{ nullptr };
 		std::uint32_t                                   g_sweepId{ 0 };
 		float                                           g_sweepTimer{ 0.0f };
@@ -229,6 +238,37 @@ namespace Occlusion
 				}
 			}
 			g_fogBackups.clear();
+			for (auto& backup : g_weatherBackups) {
+				for (std::uint32_t time = 0; time < RE::TESWeather::ColorTime::kTotal; ++time) {
+					backup.weather->colorData[RE::TESWeather::ColorTypes::kFogNear][time] = backup.nearColor[time];
+					backup.weather->colorData[RE::TESWeather::ColorTypes::kFogFar][time] = backup.farColor[time];
+				}
+			}
+			g_weatherBackups.clear();
+		}
+
+		void BlackenWeather(RE::TESWeather* a_weather)
+		{
+			if (!a_weather) {
+				return;
+			}
+			for (const auto& backup : g_weatherBackups) {
+				if (backup.weather == a_weather) {
+					return;
+				}
+			}
+			WeatherBackup backup;
+			backup.weather = a_weather;
+			for (std::uint32_t time = 0; time < RE::TESWeather::ColorTime::kTotal; ++time) {
+				auto& nearColor = a_weather->colorData[RE::TESWeather::ColorTypes::kFogNear][time];
+				auto& farColor = a_weather->colorData[RE::TESWeather::ColorTypes::kFogFar][time];
+				backup.nearColor[time] = nearColor;
+				backup.farColor[time] = farColor;
+				nearColor.red = nearColor.green = nearColor.blue = 0;
+				farColor.red = farColor.green = farColor.blue = 0;
+			}
+			g_weatherBackups.push_back(backup);
+			logs::info("[fog] weather {:08X} fog set to black while inside", a_weather->GetFormID());
 		}
 
 		void Blacken(RE::INTERIOR_DATA* a_data)
@@ -266,6 +306,19 @@ namespace Occlusion
 			if (tmpl && !IsBlack(&tmpl->data)) {
 				BackupAndBlacken(&tmpl->data);
 				Blacken(&tmpl->data);
+			}
+			// Sky-lit interiors: the weather's fog, for whichever weathers are blending right now.
+			if (auto* sky = RE::Sky::GetSingleton()) {
+				BlackenWeather(sky->currentWeather);
+				BlackenWeather(sky->lastWeather);
+				BlackenWeather(sky->overrideWeather);
+			}
+			// What shows where nothing is drawn (through the cut) is the renderer's clear colour.
+			if (auto* renderer = RE::BSGraphics::Renderer::GetSingleton()) {
+				auto& data = renderer->GetRendererData();
+				data.clearColor[0] = 0.0f;
+				data.clearColor[1] = 0.0f;
+				data.clearColor[2] = 0.0f;
 			}
 			if (auto* scene = RE::BSShaderManager::State::GetSingleton().shadowSceneNode[0]) {
 				if (auto& fog = scene->GetRuntimeData().fogProperty; fog) {
@@ -368,6 +421,15 @@ namespace Occlusion
 				if (tmpl) {
 					BackupAndBlacken(&tmpl->data);
 				}
+				// Dungeons give each room its own lighting template; the game blends between them.
+				a_cell->ForEachReference([](RE::TESObjectREFR* a_ref) {
+					if (a_ref) {
+						if (const auto* room = a_ref->extraList.GetByType<RE::ExtraRoomRefData>(); room && room->data && room->data->lightingTemplate) {
+							BackupAndBlacken(&room->data->lightingTemplate->data);
+						}
+					}
+					return RE::BSContainer::ForEachResult::kContinue;
+				});
 				logs::info("[fog] interior fog set to black ({} block(s))", g_fogBackups.size());
 			}
 		}
@@ -505,6 +567,7 @@ namespace Occlusion
 		{
 			if (!Settings::CutawayEnabled) {
 				Cut::Deactivate();
+				RestoreFog();  // nothing is cut, so give the cell and the weather their own fog back
 				return;
 			}
 			auto* player = RE::PlayerCharacter::GetSingleton();
