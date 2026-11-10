@@ -1,8 +1,37 @@
-# ARPG Point and Click
+# ARPG POV
 
-Path of Exile style mouse controls for Skyrim, made for the [Skyrim ARPG Style Camera Mod](https://github.com/nannernick/Skyrim-ARPG-Style-Camera-Mod). You get an on-screen cursor, click-to-move, click to loot, talk and use doors, outlines, and item name labels with a loot filter.
+Turns Skyrim into a Path of Exile style ARPG view, in one SKSE plugin:
 
-**Requires:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) (draws the cursor and labels) and [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614). Built for Skyrim **1.7.104**.
+- **Camera:** locked at a fixed top-down angle.
+- **Cutaway:** indoors, the walls and roofs between the camera and you are cut away.
+- **Point and click:** an on-screen cursor, click-to-move, click to attack, loot, talk and use doors.
+- **Item labels:** loot shows its name, with a loot filter.
+- **Outlines:** a soft glow around enemies, NPCs, you and nearby loot.
+
+Play with the mouse, with **WASD and a lock-on key** (True Directional Movement's target lock), or both. Tested on Skyrim **1.7.104**.
+
+This mod replaces *Skyrim ARPG Style Camera Mod* and *ARPG Point and Click*. Uninstall both before installing it.
+
+**Requires:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) (draws the cursor and labels, and gives the settings pages) and [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614). Without SKSE Menu Framework the camera and cutaway still work; point and click stays off.
+
+## Install
+Download **ARPGPOV-mod** from the latest green run in **Actions**, drag it into Vortex, and launch through SKSE.
+
+Coming from the two older mods: your settings don't carry over by themselves. Copy any `[GameSettings]`, `[Cells]` and `[Player]` lines you added from `SkyrimARPGCamera.ini` into `ARPGPOV.ini`.
+
+## Suggested modpack
+- **Base:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604), [MCM Helper](https://www.nexusmods.com/skyrimspecialedition/mods/53000), Pandora Behaviour Engine
+- **Camera:** this mod, [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352), [3PCO](https://www.nexusmods.com/skyrimspecialedition/mods/18515), [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614), [Some Collision Camera](https://www.nexusmods.com/skyrimspecialedition/mods/57864), [Motion Sensitive Fix](https://www.nexusmods.com/skyrimspecialedition/mods/35833)
+- **Combat:** [Precision](https://www.nexusmods.com/skyrimspecialedition/mods/72347)
+- **Skills and spells:** Ordinator, Apocalypse, [Summermyst](https://www.nexusmods.com/skyrimspecialedition/mods/6285)
+- **Loot:** [Grid Inventory - DiabloRim](https://www.nexusmods.com/skyrimspecialedition/mods/190634), [Socketing](https://www.nexusmods.com/skyrimspecialedition/mods/195740)
+
+Run Pandora, then launch with `skse64_loader.exe`.
+
+## Camera mod settings required
+**3PCO:** FOV 90, camera speed 0, min/max zoom 600. Every offset and zoom 0 in Sheathed, Melee, Ranged and Sneak. Auto 3rd/1st person, crosshair, Ranged Cam and Magic is Ranged all off. The four Sneak toggles off.
+
+**True Directional Movement:** directional movement on, Auto Adjust Camera off, target lock pitch/yaw adjust speed at minimum. Reset Camera with Target Lock on, Reset Camera Pitch off. Lock on before using magic or bows.
 
 ## Controls
 - **Left click** the ground: move there. Hold it to keep following the cursor.
@@ -14,10 +43,44 @@ Path of Exile style mouse controls for Skyrim, made for the [Skyrim ARPG Style C
 
 The cursor shows what a click will do: a **red sword** attacks, a **spilling bag of gold** loots, an **exclamation mark** talks (green) or goes through a door (white), and the white arrow moves. The click point is the sword's tip, or the small pointer beside the bag and the exclamation mark.
 
-## Outlines
-Enemies get a red outline, you and NPCs white, nearby items the colour of their label, and whatever the cursor is on is always outlined. These are true outlines that follow the model, limbs and weapons included. They show through walls.
+The cursor's click point is on the floor level you're standing on, not on physics, so the roofs the cutaway hides can't block a click. Movement is a straight line toward the click and stops if you run into a wall. The mouse moves the cursor instead of the camera; your lock-on key still works.
 
-Each outlined thing costs a little. If frames drop in a crowded area, lower the two outline distances in the settings page.
+## Camera locker
+Locks the camera's pitch (and optionally yaw) every frame. Indoors, it keeps your room drawn when the camera sits above the ceiling.
+- **F10:** on/off
+- **Page Up / Page Down:** more top-down / flatter
+- Pitch 30 = Path of Exile 2 / Diablo II, 50 = Path of Exile
+
+<details>
+<summary><b>Angle math</b></summary>
+
+| Game | Pitch |
+|---|---|
+| Diablo II | 30 (2:1 floor tiles: arcsin(1 ÷ 2) = 30°) |
+| Path of Exile | 50 (ring 210 × 160 px at 1080p: arcsin(160 ÷ 210) = 49.6°) |
+| Path of Exile 2 | 30 (ring ~700 × 350 px: arcsin(350 ÷ 700) = 30°) |
+| Diablo IV | not measured yet |
+
+![Path of Exile ring measured at 1920×1080](images/poe1-measurement.jpg)
+
+**Pitch = arcsin(height ÷ width)**
+
+To measure any game, screenshot a circle on the ground (an AoE ring) near the center of the screen, then measure its width and height in pixels. ARPGs use a narrow lens from far away, so also lower 3PCO's FOV (~40–55) and raise the zoom.
+</details>
+
+## Camera splitter
+Indoors, everything above a cut line is removed by the GPU. Walls end cleanly and roofs vanish, while floors, furniture and characters stay. The background goes black.
+- **F9:** *Auto* (split only when walls block the view) or *Always* (Diablo look)
+- The cut stays at one height per floor. Jumps don't move it, and changes ease in.
+- The cut rises behind you, so far walls stay full height.
+- Idea from machinegod's *Skyrim Camera Disocclusion System*. This is a separate implementation.
+
+## Outlines
+Enemies get a red glow, you and NPCs white, nearby items the colour of their label. Whatever the cursor is on glows at full strength. These are true outlines that follow the model, limbs and weapons included.
+
+- The glow is soft by default: darkened colours, part transparent, fainter with distance. Size, strength and brightness are sliders.
+- Outlines show through walls. Loot that sits well above you (shelves, ledges, the floor upstairs) gets no outline, so it isn't drawn over the scene.
+- Each outlined thing costs a little. If frames drop in a crowded area, lower the two outline distances.
 
 The outline renderer is from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses) by AmazingBuff. ENB and Community Shaders are untested with it.
 
@@ -26,20 +89,80 @@ Loot near you shows its name. White = gear, blue = enchanted, gold = gold, keys,
 
 Skyrim lets you pick up almost anything, so the filter decides what counts as loot. Always shown: weapons, armor, ammo, potions, scrolls, spell tomes, keys, soul gems, gold, lockpicks, gems, ore and ingots. Off by default, each with its own switch: food, ingredients, other books, clutter (kettles, buckets, plates...). Filtered items get no label and can't be clicked. `MinValue` hides anything worth less than a set amount.
 
-## With the camera mod
-- The mouse moves the cursor instead of the camera, so the view stays put with `LockYaw` on or off. Your lock-on key still works.
-- Clicks land on the floor level you're standing on, not on physics, so the roofs the cutaway hides can't block them.
-- Movement is a straight line toward the click. It stops if you run into a wall.
-
-## Install
-Download **ARPGPointClick-mod** from the latest green run in **Actions**, drag it into Vortex, and launch through SKSE.
-
 ## Settings
-**In game:** SKSE Menu Framework menu (F1) > **ARPG Point and Click**. **INI:** `Data/SKSE/Plugins/ARPGPointClick.ini` (buttons and keys are set here).
+**In game:** open the SKSE Menu Framework menu (F1) and go to **ARPG POV**: pages for Camera, Cutaway, Player and Point and Click. Changes apply live. Click **Save to INI** to keep them.
+
+**INI:** `Data/SKSE/Plugins/ARPGPOV.ini`. **F8** reloads it in game. Keys are DirectX scan codes (0x44 = F10). Mouse buttons: 0 = left, 1 = right, 2 = middle, 3+ = side buttons.
+
+| Key | |
+|---|---|
+| F7 | Point and click on/off |
+| F8 | Reload the INI |
+| F9 | Cutaway style: Auto / Always |
+| F10 | Camera lock on/off |
+| Page Up / Page Down | Camera more top-down / flatter |
+
+<details>
+<summary><b>[Camera]</b> camera locker</summary>
 
 | Setting | Default | |
 |---|---|---|
-| `[General] Enabled` / `ToggleKey` | 1 / 0x41 (F7) | On at start, on/off key |
+| `Enabled` | 1 | Lock on at game start |
+| `LockPitch` / `Pitch` | 1 / 30 | Lock the angle, degrees looking down |
+| `LockYaw` / `Yaw` | 0 / 45 | Lock the compass direction (0 = north) |
+| `FixInteriorRooms` | 1 | Draw your room when the camera is above the ceiling |
+| `PauseOnTargetLock` | 0 | Let TDM hold the camera while locked on |
+| `PitchMode` / `InvertPitch` | 0 / 0 | Leave at 0 unless the camera looks up |
+| `ToggleKey` | 0x44 (F10) | Camera on/off |
+| `PitchUpKey` / `PitchDownKey` / `PitchStep` | PgUp / PgDn / 5 | Change pitch in game |
+| `ReloadKey` | 0x42 (F8) | Reload the INI |
+| `DebugLog` | 0 | Log camera values once a second |
+</details>
+
+<details>
+<summary><b>[Player]</b> and <b>[GameSettings]</b></summary>
+
+| Setting | Default | |
+|---|---|---|
+| `CarryWeight` | 10000 | Applied on every load (0 = leave alone) |
+| `SpeedMult` | 130 | Movement speed, 100 = vanilla (0 = leave alone) |
+| `[GameSettings]` | `fMoveEncumEffect = 0`, `fMoveEncumEffectNoWeapon = 0` | Any engine setting (the names `setgs` uses), applied every launch |
+</details>
+
+<details>
+<summary><b>[Cutaway]</b> and <b>[Cut]</b> camera splitter</summary>
+
+| Setting | Default | |
+|---|---|---|
+| `Enabled` | 1 | Splitter on/off |
+| `InteriorOnly` | 1 | Only split indoors |
+| `Height` | 220 | Cut height above the floor (a human is ~128) |
+| `Slope` | 1 | How fast the cut rises behind you, so far walls stay (0 = flat) |
+| `AutoLift` | 1 | Starting style: 1 = Auto, 0 = Always |
+| `StyleKey` | 0x43 (F9) | Switch style |
+| `ClearDelay` / `LiftMax` | 0.75 / 600 | Auto: seconds of clear view before it lifts, how far it lifts |
+| `ReanchorDistance` / `ReanchorDelay` | 150 / 1 | How far and how long you must stand on a new floor before the cut moves |
+| `HeightSmoothing` / `MaxHeightSpeed` | 0.6 / 800 | How gently height changes ease in |
+| `AllGeometry` | 1 | Leave on (keeps props and characters visible) |
+</details>
+
+<details>
+<summary><b>[Cells]</b>, <b>[Background]</b>, <b>[Debug]</b></summary>
+
+| Setting | Default | |
+|---|---|---|
+| `[Cells] EditorID = 260` or `= off` | none | Per-interior cut height or off. Editor IDs show in the log. |
+| `BlackFog` | 1 | Black interior fog while inside |
+| `HideSky` | 1 | Hide the sky dome while inside |
+| `[Debug] Cutaway` / `PointClick` | 0 / 0 | Write diagnostics to `ARPGPOV.log` |
+</details>
+
+<details>
+<summary><b>[PointClick]</b>, <b>[Cursor]</b>, <b>[Move]</b>, <b>[Pickup]</b>, <b>[Labels]</b>, <b>[Outlines]</b></summary>
+
+| Setting | Default | |
+|---|---|---|
+| `[PointClick] Enabled` / `ToggleKey` | 1 / 0x41 (F7) | On at start, on/off key |
 | `[Cursor] Sensitivity` / `Size` | 1 / 1 | Cursor speed and size |
 | `[Cursor] Ring` | 1 | Ring behind the sword, bag and exclamation mark, in the symbol's colour |
 | `[Cursor] BlockMouseLook` / `RotateKey` | 1 / 0 | Mouse moves the cursor, hold a key to rotate the camera |
@@ -54,12 +177,14 @@ Download **ARPGPointClick-mod** from the latest green run in **Actions**, drag i
 | `[Labels] Max` / `Scale` / `MinValue` | 60 / 1 / 0 | Label cap, text size, minimum value |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Items` | 1 / 1 / 1 / 1 | Outlines on, and per group |
-| `[Outlines] Thickness` / `Radius` / `ItemRadius` | 1 / 3000 / 700 | Line thickness (1-8), how far away actors / items are outlined |
-
-Mouse buttons: 0 = left, 1 = right, 2 = middle, 3+ = side buttons. Keys are DirectX scan codes.
+| `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 3 / 0.6 / 0.7 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
+| `[Outlines] Radius` / `ItemRadius` | 3000 / 700 | How far away actors / items are outlined |
+| `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline |
+</details>
 
 ## Credits
-- **AmazingBuff**: the outline renderer (`src/render`, `src/base`), from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses), GPL-3.0
+- **AmazingBuff**: the outline renderer (`src/render`, `src/base`), from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses), GPL-3.0.
+- **machinegod**: the cutaway idea, from *Skyrim Camera Disocclusion System*. The cutaway here is a separate implementation.
 - CommonLibSSE-NG contributors, the SKSE team, meh321 (Address Library), Thiago099 (SKSE Menu Framework), Ershin (True Directional Movement).
 
 ## License

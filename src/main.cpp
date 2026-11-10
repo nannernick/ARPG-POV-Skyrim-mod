@@ -1,9 +1,14 @@
-// ARPG Point and Click: on-screen cursor, click-to-move, click pickup and item labels.
+// ARPG POV: the ARPG camera (pitch lock + interior cutaway), point and click (on-screen cursor,
+// click-to-move, click pickup, item labels) and model outlines, in one plugin.
 // Built against CommonLibSSE-NG (alandtse fork) for SE/AE/1.7.x runtimes.
 
+#include "Camera.h"
+#include "Cut.h"
 #include "Game.h"
 #include "Hud.h"
 #include "Input.h"
+#include "Menu.h"
+#include "Occlusion.h"
 #include "Outline.h"
 #include "Settings.h"
 
@@ -16,22 +21,30 @@ namespace
 		}
 		switch (a_msg->type) {
 		case SKSE::MessagingInterface::kPostLoad:
-			Hud::Register();
+			Menu::Register();  // settings pages: Camera, Cutaway, Player
+			Hud::Register();   // settings page: Point and Click, plus the cursor and labels
 			break;
 		case SKSE::MessagingInterface::kInputLoaded:
 			Input::Register();
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
+			Camera::ApplyGameSettings();
 			Game::RegisterMenuSink();
 			Outline::Install();
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
-		case SKSE::MessagingInterface::kNewGame:
+			Occlusion::RestoreAll();
 			Game::Reset();
 			break;
+		case SKSE::MessagingInterface::kNewGame:
+			Occlusion::RestoreAll();
+			Game::Reset();
+			Camera::ApplyPlayerValues();
+			break;
 		case SKSE::MessagingInterface::kPostLoadGame:
+			Camera::ApplyPlayerValues();
 			if (!Hud::Available()) {
-				RE::SendHUDMessage::ShowHUDMessage("ARPG Point and Click needs SKSE Menu Framework");
+				RE::SendHUDMessage::ShowHUDMessage("ARPG POV: point and click needs SKSE Menu Framework");
 			}
 			break;
 		default:
@@ -42,10 +55,13 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
-	SKSE::Init(a_skse);
-	logs::info("ARPG Point and Click loading");
+	SKSE::Init(a_skse, { .trampoline = true, .trampolineSize = 64 });
+	logs::info("ARPG POV loading");
 
 	Settings::Load();
+	Camera::Install();
+	Occlusion::Install();
+	Cut::Install();
 	Game::Install();
 	Input::Install();
 
@@ -53,6 +69,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 		messaging->RegisterListener(OnMessage);
 	}
 
-	logs::info("ARPG Point and Click loaded");
+	logs::info("ARPG POV loaded");
 	return true;
 }

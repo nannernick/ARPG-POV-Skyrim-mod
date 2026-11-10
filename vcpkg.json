@@ -1,7 +1,7 @@
 {
-  "name": "arpgpointclick",
-  "version-string": "1.2.0",
-  "description": "Point-and-click movement, cursor, outlines and item labels for Skyrim.",
+  "name": "arpgpov",
+  "version-string": "1.0.0",
+  "description": "ARPG camera, interior cutaway, point and click, item labels and model outlines for Skyrim.",
   "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
   "dependencies": [
     "detours",

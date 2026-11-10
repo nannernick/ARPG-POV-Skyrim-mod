@@ -43,8 +43,14 @@ namespace Outline
 
 		bool Wanted(const Game::Target& a_target, bool a_hovered)
 		{
+			// Loot above you (shelves, ledges, the floor upstairs) gets no outline, hovered or not:
+			// outlines ignore what's in front of them, so those would be drawn over the scene.
+			const bool loot = a_target.kind == Game::Kind::kItem || a_target.kind == Game::Kind::kContainer || a_target.kind == Game::Kind::kCorpse;
+			if (loot && a_target.above > Settings::OutlineMaxAbove) {
+				return false;
+			}
 			if (a_hovered) {
-				return true;  // whatever the cursor is on is always outlined
+				return true;  // otherwise, whatever the cursor is on is always outlined
 			}
 			if (!Settings::Outlines) {
 				return false;
@@ -248,8 +254,18 @@ namespace Outline
 					entry.distance = target.distance;
 					entry.priority = Priority(target, hot);
 					entry.living = target.kind == Game::Kind::kEnemy || target.kind == Game::Kind::kNpc || target.kind == Game::Kind::kPlayer;
-					entry.color = { static_cast<float>(target.color & 0xFF) / 255.0f, static_cast<float>((target.color >> 8) & 0xFF) / 255.0f,
-						static_cast<float>((target.color >> 16) & 0xFF) / 255.0f, 1.0f };
+					// A soft glow: colours darkened, drawn part-transparent, fainter with distance.
+					// The thing under the cursor stays at full strength so it stands out.
+					const float bright = hot ? 1.0f : std::clamp(Settings::OutlineBrightness, 0.1f, 1.0f);
+					float       alpha = hot ? 1.0f : std::clamp(Settings::OutlineOpacity, 0.05f, 1.0f);
+					if (!hot && Settings::OutlineFade) {
+						const float reach = std::max(entry.living ? Settings::OutlineRadius : Settings::OutlineItemRadius, 1.0f);
+						const float t = std::clamp(target.distance / reach, 0.0f, 1.0f);
+						alpha *= 1.0f - 0.6f * t * t;  // 40% of its strength at the edge of the outline distance
+					}
+					entry.color = { bright * static_cast<float>(target.color & 0xFF) / 255.0f,
+						bright * static_cast<float>((target.color >> 8) & 0xFF) / 255.0f,
+						bright * static_cast<float>((target.color >> 16) & 0xFF) / 255.0f, alpha };
 					entries.push_back(entry);
 				}
 				if (entries.empty()) {

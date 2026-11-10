@@ -1,5 +1,7 @@
 #include "Input.h"
+#include "Camera.h"
 #include "Game.h"
+#include "Occlusion.h"
 #include "Settings.h"
 
 namespace Input
@@ -130,10 +132,10 @@ namespace Input
 					if (code == Settings::LabelKey) {
 						State::labelKeyHeld.store(pressed);
 					}
-					if (code == Settings::ToggleKey && a_button->IsDown()) {
+					if (a_button->IsDown()) {
 						auto* ui = RE::UI::GetSingleton();
-						if (ui && !ui->GameIsPaused()) {
-							Game::Toggle();
+						if (ui && !ui->GameIsPaused()) {  // not in menus or the console
+							Hotkey(code);
 						}
 					}
 				}
@@ -170,6 +172,29 @@ namespace Input
 					held += key != kNoKey ? 1 : 0;
 				}
 				State::moveKeysHeld.store(held);
+			}
+
+			static void Hotkey(std::uint32_t a_code)
+			{
+				if (a_code == Settings::ToggleKey) {
+					Game::Toggle();
+				}
+				if (a_code == Settings::CameraToggleKey) {
+					Camera::Toggle();
+				}
+				if (a_code == Settings::StyleKey) {
+					Occlusion::ToggleStyle();
+				}
+				if (a_code == Settings::PitchUpKey) {
+					Camera::AdjustPitch(Settings::PitchStep);
+				}
+				if (a_code == Settings::PitchDownKey) {
+					Camera::AdjustPitch(-Settings::PitchStep);
+				}
+				if (a_code == Settings::ReloadKey) {
+					Reload();
+					RE::SendHUDMessage::ShowHUDMessage("ARPG POV: settings reloaded");
+				}
 			}
 
 			static void OnMouseButton(RE::ButtonEvent* a_button)
@@ -214,8 +239,28 @@ namespace Input
 			input->AddEventSink(static_cast<RE::BSTEventSink<RE::InputEvent*>*>(Sink::Get()));
 			logs::info("[input] registered: move button {}, pickup button {}, toggle key {:#x}", Settings::MoveButton, Settings::PickupButton,
 				Settings::ToggleKey);
+			logs::info("[input] keys: camera {:#x}, cutaway style {:#x}, pitch {:#x}/{:#x}, reload {:#x}", Settings::CameraToggleKey,
+				Settings::StyleKey, Settings::PitchUpKey, Settings::PitchDownKey, Settings::ReloadKey);
 		} else {
-			logs::error("[input] no input device manager; point and click unavailable");
+			logs::error("[input] no input device manager; point and click and the hotkeys are unavailable");
 		}
+	}
+
+	void Reload()
+	{
+		// Keep the cut style F9 picked unless the INI's AutoLift itself was changed.
+		static bool s_fileAutoLift = Settings::AutoLift;
+		Settings::Load();
+		Camera::SetActive(Settings::CameraEnabled);
+		if (Settings::AutoLift != s_fileAutoLift) {
+			s_fileAutoLift = Settings::AutoLift;
+			Occlusion::SetAutoLift(Settings::AutoLift);
+		} else {
+			Settings::AutoLift = Occlusion::GetAutoLift();  // so Save to INI keeps the current style
+		}
+		Occlusion::RestoreAll();  // re-reads cell overrides, fog and sky on the next frame
+		Camera::ApplyGameSettings();
+		Camera::ApplyPlayerValues();
+		Game::RefreshGameplay();  // point and click may have been switched on or off
 	}
 }

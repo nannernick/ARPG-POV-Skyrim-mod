@@ -2,6 +2,7 @@
 #include "Cursor.h"
 #include "Game.h"
 #include "Hull.h"
+#include "Input.h"
 #include "Outline.h"
 #include "Settings.h"
 
@@ -368,7 +369,7 @@ namespace Hud
 		void __stdcall RenderSettings()
 		{
 			SeparatorText("Point and click");
-			Checkbox("Enabled", &Settings::Enabled);
+			Checkbox("Enabled", &Settings::PointClickEnabled);
 			Hint("Also toggled with the toggle key (F7 by default). Off = normal WASD and mouse look.");
 			SliderFloat("Cursor speed", &Settings::Sensitivity, 0.1f, 5.0f, "%.2f");
 			SliderFloat("Cursor size", &Settings::CursorSize, 0.5f, 4.0f, "%.1f");
@@ -400,10 +401,17 @@ namespace Hud
 			Checkbox("You and NPCs (white)", &Settings::OutlineNpcs);
 			SameLine();
 			Checkbox("Items", &Settings::OutlineItems);
-			SliderInt("Line thickness", &Settings::OutlineThickness, 1, 8);
+			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);
+			Hint("1 = a thin line. Higher widens the line and the glow around it.");
+			SliderFloat("Glow strength", &Settings::OutlineOpacity, 0.05f, 1.0f, "%.2f");
+			SliderFloat("Colour brightness", &Settings::OutlineBrightness, 0.1f, 1.0f, "%.2f");
+			Hint("Lower = darker, subtler colours. The thing under the cursor always glows at full strength.");
+			Checkbox("Fainter with distance", &Settings::OutlineFade);
 			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
 			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
 			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
+			SliderFloat("No loot outlines higher than", &Settings::OutlineMaxAbove, 0.0f, 500.0f, "%.0f");
+			Hint("Items, containers and corpses this far above your feet get no outline (a human is ~128 tall).");
 
 			SeparatorText("Item labels");
 			const char* const labelModes[] = { "Only under the cursor", "Always", "While the label key is held" };
@@ -430,10 +438,12 @@ namespace Hud
 			if (Button("Save to INI")) {
 				g_status = Settings::Save() ? "Saved." : "Couldn't write the INI - see the log.";
 			}
-			Hint("Writes every setting to Data/SKSE/Plugins/ARPGPointClick.ini.");
+			Hint("Writes every setting to Data/SKSE/Plugins/ARPGPOV.ini.");
 			SameLine();
 			if (Button("Reload INI")) {
-				Settings::Load();
+				if (auto* tasks = SKSE::GetTaskInterface()) {
+					tasks->AddTask([] { Input::Reload(); });
+				}
 				g_status = "Reloaded from the INI.";
 			}
 			if (!g_status.empty()) {
@@ -451,8 +461,8 @@ namespace Hud
 			return;
 		}
 		g_available = true;
-		SKSEMenuFramework::SetSection("ARPG Point and Click");
-		SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
+		SKSEMenuFramework::SetSection("ARPG POV");
+		SKSEMenuFramework::AddSectionItem("Point and Click", RenderSettings);
 		SKSEMenuFramework::AddHudElement(Render);
 		logs::info("[hud] registered with SKSE Menu Framework");
 	}

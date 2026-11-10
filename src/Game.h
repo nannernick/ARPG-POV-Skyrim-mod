@@ -23,6 +23,7 @@ namespace Game
 		RE::NiPoint3              pos;                   // label anchor
 		std::vector<RE::NiPoint3> points;                // outermost points; on screen their outline is the outline drawn and the click area
 		float                     distance{ 0.0f };      // from the player, at the last scan
+		float                     above{ 0.0f };         // how far above the player's feet it sits, at the last scan
 		float                     pad{ 3.0f };           // how far outside those points the outline sits (Skyrim units)
 		std::uint32_t             color{ 0xFFFFFFFF };   // 0xAABBGGRR
 		Kind                      kind{ Kind::kItem };

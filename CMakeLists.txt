@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ARPGPointClick VERSION 1.2.0 LANGUAGES CXX)
+project(ARPGPOV VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,9 +49,13 @@ add_commonlibsse_plugin(${PROJECT_NAME}
 	AUTHOR "Nick"
 	SOURCES
 		src/main.cpp
+		src/Camera.cpp
+		src/Cut.cpp
 		src/Game.cpp
 		src/Hud.cpp
 		src/Input.cpp
+		src/Menu.cpp
+		src/Occlusion.cpp
 		src/Outline.cpp
 		src/Settings.cpp
 		${OUTLINE_SOURCES}
@@ -60,7 +64,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
 
-# SKSEMenuFramework.h (SKSE Menu Framework's public header: draws the cursor, labels and settings page).
+# SKSEMenuFramework.h (SKSE Menu Framework's public header: draws the cursor, labels and settings pages).
 target_include_directories(${PROJECT_NAME} PRIVATE include src ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 # Outline renderer: Direct3D, plus Microsoft Detours for its hook into the interface draw.
@@ -79,5 +83,5 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist/SKSE/Plugins")
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${PROJECT_NAME}>" "${DIST_DIR}"
-	COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/ARPGPointClick.ini" "${DIST_DIR}"
+	COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/ARPGPOV.ini" "${DIST_DIR}"
 )

@@ -331,7 +331,7 @@ namespace Game
 			// containers and doors, loots corpses, starts dialogue.
 			a_ref->ActivateRef(a_player, 0, nullptr, 1, false);
 			g_scanTimer = 0.0f;  // refresh the labels straight away
-			if (Settings::DebugLog) {
+			if (Settings::PointClickDebugLog) {
 				logs::info("[use] activated {:08X}", a_ref->GetFormID());
 			}
 		}
@@ -608,6 +608,7 @@ namespace Game
 				target.handle = a_ref->GetHandle();
 				target.formID = a_ref->GetFormID();
 				target.distance = std::hypot(pos.x - origin.x, pos.y - origin.y);
+				target.above = pos.z - origin.z;
 
 				if (a_ref->IsActor()) {
 					auto* actor = a_ref->As<RE::Actor>();
@@ -900,7 +901,7 @@ namespace Game
 	void RefreshGameplay()
 	{
 		bool on = false;
-		if (Settings::Enabled && Hud::Available()) {
+		if (Settings::PointClickEnabled && Hud::Available()) {
 			auto* ui = RE::UI::GetSingleton();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			auto* camera = RE::PlayerCamera::GetSingleton();
@@ -1000,7 +1001,7 @@ namespace Game
 
 	void Toggle()
 	{
-		Settings::Enabled = !Settings::Enabled;
-		RE::SendHUDMessage::ShowHUDMessage(Settings::Enabled ? "Point and click: ON" : "Point and click: OFF");
+		Settings::PointClickEnabled = !Settings::PointClickEnabled;
+		RE::SendHUDMessage::ShowHUDMessage(Settings::PointClickEnabled ? "Point and click: ON" : "Point and click: OFF");
 	}
 }

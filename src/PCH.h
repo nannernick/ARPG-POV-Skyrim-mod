@@ -13,6 +13,8 @@
 #include <cstring>
 #include <format>
 #include <fstream>
+#include <functional>
+#include <numbers>
 #include <memory>
 #include <mutex>
 #include <string>
