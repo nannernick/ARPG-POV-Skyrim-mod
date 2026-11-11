@@ -705,7 +705,7 @@ namespace Occlusion
 					if (aLen > 1.0f) {
 						params.ax = ax / aLen;
 						params.ay = ay / aLen;
-						params.slope = g_autoLift ? Settings::CutSlope : 0.0f;  // Diablo style is always a flat cut
+						params.slope = g_autoLift ? Settings::CutSlope : 0.0f;  // the Default style is always a flat cut
 					}
 					Cut::Publish(params, feet, camPos);
 
@@ -800,7 +800,7 @@ namespace Occlusion
 	{
 		SetAutoLift(!g_autoLift);
 		Settings::AutoLift = g_autoLift;
-		RE::SendHUDMessage::ShowHUDMessage(g_autoLift ? "Cutaway: Automatic (experimental)" : "Cutaway: Diablo style");
+		RE::SendHUDMessage::ShowHUDMessage(g_autoLift ? "Cutaway: Automatic (experimental)" : "Cutaway: Default");
 		logs::info("[cut] style toggled: {}", g_autoLift ? "auto" : "locked");
 	}
 

@@ -1,122 +1,107 @@
-# ARPG POV
+![ARPG Point Of View](images/banner.png)
 
-Turns Skyrim into a Path of Exile style ARPG view, in one SKSE plugin:
+# ARPG POV (ARPG Point Of View)
 
-- **Camera:** locked at a fixed top-down angle.
-- **Cutaway:** indoors, the walls and roofs between the camera and you are cut away.
-- **Point and click:** an on-screen cursor, click-to-move, click to attack, loot, talk and use doors.
-- **Item labels:** loot shows its name, with a loot filter.
-- **Life and mana globes:** Path of Exile style globes in the bottom corners, with stamina as a curved bar on the life globe. The game's bars are hidden while they're on.
-- **Outlines:** a soft glow around enemies, NPCs, followers, you and nearby loot, with optional ground circles under characters.
+**Play Skyrim like Path of Exile.** One SKSE plugin:
 
-Play with the mouse, with **WASD and a lock-on key** (True Directional Movement's target lock), or both. Tested on Skyrim **1.7.104**.
+- **ARPG camera angle:** a locked top-down camera, with presets from Path of Exile, Diablo and more
+- **Point and click:** click to move, attack, loot, talk and use doors
+- **ARPG style HUD:** life and mana globes
 
-This mod replaces *Skyrim ARPG Style Camera Mod* and *ARPG Point and Click*. Uninstall both before installing it.
+There's also an interior cutaway, outlines, and item labels with a loot filter. Made for Vortex and tested on Skyrim SE **1.7.104**.
 
-**Requires:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) (draws the cursor and labels, and gives the settings pages) and [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614). Without SKSE Menu Framework the camera and cutaway still work; point and click stays off.
+> ### Get the full modpack: [ARPG POV Nexus Collection](https://www.nexusmods.com/games/skyrimspecialedition/collections/5qdega)
+> It's a Diablo-style Skyrim in one click in Vortex: ARPG POV, its requirements, combat, skills, DiabloRim loot and Alternate Start. **[Open the collection](https://www.nexusmods.com/games/skyrimspecialedition/collections/5qdega)**
+
+> ### Everything is customizable
+> Press **F1** in game, then go to **ARPG POV**. Every feature can be switched on or off and tuned there, live. The defaults are my picks for the collection. Don't want the globes? Turn them off in F1 → HUD. Prefer WASD? Press F7.
+
+**[Nexus page](https://www.nexusmods.com/skyrimspecialedition/mods/198647)** · **[Installation Guide (PDF)](docs/ARPG-POV-Installation-Guide.pdf)** · **Video guide: (In Progress)**
 
 ## Install
-Download **ARPGPOV-mod** from the latest green run in **Actions**, drag it into Vortex, and launch through SKSE.
 
-Coming from the two older mods: your settings don't carry over by themselves. Copy any `[GameSettings]`, `[Cells]` and `[Player]` lines you added from `SkyrimARPGCamera.ini` into `ARPGPOV.ini`.
+### 📄 [Open the Installation Guide (PDF)](docs/ARPG-POV-Installation-Guide.pdf)
+It has the full step-by-step guide, the exact TDM settings, a first-launch checklist and fixes.
 
-## Suggested modpack
-- **Base:** [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604), [MCM Helper](https://www.nexusmods.com/skyrimspecialedition/mods/53000), Pandora Behaviour Engine
-- **Camera:** this mod, [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352), [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614), [Some Collision Camera](https://www.nexusmods.com/skyrimspecialedition/mods/57864), [Motion Sensitive Fix](https://www.nexusmods.com/skyrimspecialedition/mods/35833)
-- **Combat:** [Precision](https://www.nexusmods.com/skyrimspecialedition/mods/72347)
-- **Skills and spells:** Ordinator, Apocalypse, [Summermyst](https://www.nexusmods.com/skyrimspecialedition/mods/6285)
-- **Loot:** [Grid Inventory - DiabloRim](https://www.nexusmods.com/skyrimspecialedition/mods/190634), [Socketing](https://www.nexusmods.com/skyrimspecialedition/mods/195740)
+**Quick version** (made for Vortex, Skyrim SE 1.7.104):
+1. **Download Skyrim, mods and dependencies.** Get [SKSE](https://skse.silverlock.org/), [Address Library](https://www.nexusmods.com/skyrimspecialedition/mods/32444), [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352), [True Directional Movement](https://www.nexusmods.com/skyrimspecialedition/mods/51614), [Pandora Behaviour Engine](https://www.nexusmods.com/skyrimspecialedition/mods/133232) and ARPG POV, or install [the collection](https://www.nexusmods.com/games/skyrimspecialedition/collections/5qdega).
+2. **Launch Pandora's .exe through Vortex** and run it for TDM.
+3. **Configure TDM first, or the camera won't work properly.** Drop my [TrueDirectionalMovement.ini](TrueDirectionalMovement.ini) into `<game folder>\Data\MCM\Settings\`, then launch with SKSE and press **F1**.
 
-Run Pandora, then launch with `skse64_loader.exe`.
+If you use [3PCO - 3rd Person Camera Overhaul](https://www.nexusmods.com/skyrimspecialedition/mods/18515), turn it off. ARPG POV handles the camera itself.
 
-## Camera mod settings required
-**Camera distance and view:** built in (it replaces 3PCO, which is no longer needed). Defaults: the Path of Exile 2 preset (pitch 30, distance 1290, field of view 50), no shoulder offsets, mouse-wheel zoom off. An INI you already have keeps its own preset and numbers; the old look is the *Skyrim ARPG* preset (distance 600, field of view 90). Change them under Camera in the menu or `[Camera]` in the INI. If you keep 3PCO installed, set `Manage = 0` so the two don't fight.
+**My settings files:** everything is in this repo.
+- [TrueDirectionalMovement.ini](TrueDirectionalMovement.ini) goes in `<game folder>\Data\MCM\Settings\`.
+- [GridInventory_ui.ini](GridInventory_ui.ini) goes in `<game folder>\Data\SKSE\Plugins\`. It sets DiabloRim's inventory to 10×40, the most it allows (`!basegrid = 10, 40`). With ARPG POV's carry weight that's 10×45. It also makes the game keep running while the inventory is open (`!nopause = 1`), turns the quick wheel off, and applies my skin and UI scale. Your own window positions are kept.
 
-**True Directional Movement:** directional movement on, Auto Adjust Camera off, target lock pitch/yaw adjust speed at minimum, Reset Camera with Target Lock off, Reset Camera Pitch off. Lock on before using magic or bows.
+## The collection
 
-TDM turns the camera by itself: toward a locked target, and behind your character when you press lock-on with nothing to lock (its camera reset). `KeepHeading = 1` (the default) puts the heading back every frame while the mouse isn't turning the camera, which is always the case with the cursor live or a lock on. With point and click off and no lock, the mouse owns the camera and TDM's reset still goes through, so switch Reset Camera with Target Lock off in TDM as well. Needs testing in game.
+| | Mods |
+|---|---|
+| **Required** | SKSE, Address Library, SKSE Menu Framework, True Directional Movement, [Pandora Behaviour Engine](https://www.nexusmods.com/skyrimspecialedition/mods/133232) |
+| **Base** | ARPG POV, [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604), [MCM Helper](https://www.nexusmods.com/skyrimspecialedition/mods/53000), [Alternate Start - Live Another Life](https://www.nexusmods.com/skyrimspecialedition/mods/272) |
+| **Camera** | [Some Collision Camera](https://www.nexusmods.com/skyrimspecialedition/mods/57864), [Motion Sensitive Fix](https://www.nexusmods.com/skyrimspecialedition/mods/35833) |
+| **Combat** | [Precision](https://www.nexusmods.com/skyrimspecialedition/mods/72347) |
+| **Skills and spells** | [Ordinator](https://www.nexusmods.com/skyrimspecialedition/mods/1137), [Apocalypse](https://www.nexusmods.com/skyrimspecialedition/mods/1090), [Summermyst](https://www.nexusmods.com/skyrimspecialedition/mods/6285) |
+| **Loot** | [DiabloRim](https://www.nexusmods.com/skyrimspecialedition/mods/190634) (needs Grid Inventory and [EPW4NPCs](https://www.nexusmods.com/skyrimspecialedition/mods/37607), which Nexus lists when you download it; install Grid Inventory first and let DiabloRim overwrite it), [Socketing](https://www.nexusmods.com/skyrimspecialedition/mods/195740) |
+| **Crash reports** | [Crash Logger SSE](https://www.nexusmods.com/skyrimspecialedition/mods/59818) |
+
+## F1 menu
+| Page | Changes |
+|---|---|
+| Camera | Preset, pitch, yaw lock, distance, FOV, offsets, TDM behaviour |
+| Cutaway | On/off, Default or Automatic style, cut height |
+| Controls | Point and click, cursor, click behaviour, hold to attack, auto-attack, aim at the cursor |
+| Outlines | Who glows, ground circles, glow, distances |
+| Labels and Loot | Labels and the loot filter |
+| HUD | Globes, vanilla bars, size, numbers |
+| Player | Carry weight and speed |
+
+**Camera presets:** Default (pitch 30, distance 1290, FOV 50), Path of Exile 2 (same as Default), Path of Exile, Diablo II, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II, Skyrim ARPG and Custom. Only the Diablo II, Path of Exile and Path of Exile 2 pitches were measured; the rest are estimates.
+
+Click **Save to INI** to keep your changes. The INI is `Data/SKSE/Plugins/ARPGPOV.ini`, and **F8** reloads it.
 
 ## Controls
-- **Left click** the ground: move there. Hold it to keep following the cursor.
-- **Left click** an enemy: turn to it and attack. **Shift + left click** attacks toward the cursor without moving.
-- **Left click** an item or its label: pick it up. A door: go through it. An NPC: talk. A chest or corpse: loot it. A seat, lever or other named furniture or activator (the ferry seat): use it. If it's out of reach, you walk over first.
-- **Left click never triggers the game's own left-click action** while the cursor is live, whichever hand it's bound to. It must stay bound to an attack (left or right) for the plugin to see it.
-- **Hold attack** to keep attacking: one swing after another while your attack button is held (melee). Hold **Left Alt** with it for a power attack.
-- **Spells and bows** aim at the cursor, or at the enemy under it, not along the tilted camera.
-- **Auto-attack (optional, off by default):** while True Directional Movement's target lock is on, one press of attack keeps attacking until you press it again.
-- **First person:** the camera lock and the cursor switch off; the view is levelled once on entering.
-- **Middle mouse (mouse 3)** does the same as a left click on things, and never attacks or moves.
-- **WASD** still works and cancels a click-move.
-- **F7:** point and click on/off (off = normal WASD and mouse look).
-- **Insert:** turn the camera 90 degrees. Only works with **Lock yaw** on (`LockYaw = 1`); with it off the key shows a message and does nothing.
-
-The cursor shows what a click will do: a **red sword** attacks, a **spilling bag of gold** loots, an **exclamation mark** talks (green) or uses a door, seat or lever (white), and the white arrow moves. The click point is the sword's tip, or the small pointer beside the bag and the exclamation mark.
-
-The cursor's click point is on the floor level you're standing on, not on physics, so the roofs the cutaway hides can't block a click. Movement is a straight line toward the click and stops if you run into a wall. The mouse moves the cursor instead of the camera; your lock-on key still works.
-
-## Camera locker
-Locks the camera's pitch (and optionally yaw) every frame. Indoors, it keeps your room drawn when the camera sits above the ceiling.
-- **F10:** on/off
-- **Page Up / Page Down:** more top-down / flatter
-- **Insert:** with Lock yaw on, turn the locked heading 90 degrees
-- Pitch 30 = Path of Exile 2 / Diablo II, 50 = Path of Exile
-
-<details>
-<summary><b>Angle math</b></summary>
-
-| Game | Pitch |
+| Input | Does |
 |---|---|
-| Diablo II | 30 (2:1 floor tiles: arcsin(1 ÷ 2) = 30°) |
-| Path of Exile | 50 (ring 210 × 160 px at 1080p: arcsin(160 ÷ 210) = 49.6°) |
-| Path of Exile 2 | 30 (ring ~700 × 350 px: arcsin(350 ÷ 700) = 30°) |
-| Diablo IV | not measured yet |
+| Left click | Move (hold to follow), attack, pick up, doors, talk, loot, seats and levers |
+| Shift + left click | Attack in place |
+| Hold attack (+ Left Alt) | Keep attacking (power attack) |
+| Middle mouse | Use things without moving or attacking |
+| WASD + TDM lock-on | Still works |
+| F1 / F7 / F8 | Settings / point and click on-off / reload INI |
+| F9 / F10 | Cutaway style / camera lock on-off |
+| Page Up / Page Down | Camera pitch |
+| Insert | Turn 90° (with Lock yaw on) |
 
-![Path of Exile ring measured at 1920×1080](images/poe1-measurement.jpg)
+Cursor: a red sword means attack, a gold bag means loot, an exclamation mark means talk (green) or use (white), and an arrow means move.
 
-**Pitch = arcsin(height ÷ width)**
-
-To measure any game, screenshot a circle on the ground (an AoE ring) near the center of the screen, then measure its width and height in pixels. ARPGs use a narrow lens from far away, so also lower 3PCO's FOV (~40–55) and raise the zoom.
-</details>
-
-## Camera splitter
-Indoors, everything above a cut line is removed by the GPU. Walls end cleanly and roofs vanish, while floors, furniture and characters stay. The background goes black.
-- **F9:** *Diablo style* (everything above the cut height is always removed, the default) or *Automatic* (experimental: never cut lower than Diablo style, sloping up away from the camera, and rising further when nothing blocks the view of you)
-- The cut stays at one height per floor. Jumps don't move it, and changes ease in.
-- The cut rises behind you, so far walls stay full height.
-- Idea from machinegod's *Skyrim Camera Disocclusion System*. This is a separate implementation.
-
-## Outlines
-By default nearby enemies (red), your followers (blue) and you (white) glow, plus whatever the cursor is on, at full strength. NPCs (green) and loot can be switched on too. These are true outlines that follow the model, limbs and weapons included.
-
-- **Followers** are anyone the game counts as your teammate. They have their own switch and their own colour (`FollowerColor`, a colour picker in the menu), separate from other friendly NPCs.
-- **Loot** is one switch for dropped items (their label colour), containers and corpses (gold). It was called *Items* before 1.6 and only covered dropped items; an old INI's `Items` line still works. With it off they glow only under the cursor. A weapon or shield an NPC is holding is part of that NPC's model, so it is outlined with the NPC and can't have a switch of its own.
-- **Ground circles** (off by default): a ring on the ground under enemies, NPCs and followers, in the outline's colour. It uses the same Enemies / NPCs / Followers switches and works with outlines off, so it can replace them or go with them. It is drawn with the labels, over the picture, so it shows through walls and over the character's feet.
-- **Other levels:** characters more than `[Labels] MaxHeightDiff` above or below you get no outline at all, indoors and out. Characters more than `[Outlines] MaxBelow` (150) below your feet glow only under the cursor, which keeps things under the floor from lighting up. Raise it if enemies downhill lose their outline. Merchant chests are left out by what they are (each vendor's own chest), not by height.
-
-- The glow is soft by default: darkened colours, part transparent, fainter with distance. Size, strength and brightness are sliders.
-- Outlines show through walls. Loot that sits well above you (shelves, ledges, the floor upstairs) gets no outline, so it isn't drawn over the scene.
-- Each outlined thing costs a little. If frames drop in a crowded area, lower the two outline distances.
-
-The outline renderer is from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses) by AmazingBuff. ENB and Community Shaders are untested with it.
-
-## Item labels and loot filter
-Loot near you shows its name. White = gear, blue = enchanted, gold = gold, keys, soul gems, gems and ore, green = potions, cyan = scrolls and spell tomes, red = taking it is stealing. Labels stack instead of overlapping.
-
-Skyrim lets you pick up almost anything, so the filter decides what counts as loot. Always shown: weapons, armor, ammo, potions, scrolls, spell tomes, keys, soul gems, gold, lockpicks, gems, ore and ingots. Off by default, each with its own switch: food, ingredients, other books, clutter (kettles, buckets, plates...). Filtered items get no label and can't be clicked. `MinValue` hides anything worth less than a set amount.
-
-## Settings
-**In game:** open the SKSE Menu Framework menu (F1) and go to **ARPG POV**: pages for Camera, Cutaway, Controls, Outlines, Labels and Loot, HUD and Player. Changes apply live. Click **Save to INI** to keep them.
-
-**INI:** `Data/SKSE/Plugins/ARPGPOV.ini`. The defaults in the tables below are the values in the INI that ships with the mod. **F8** reloads it in game. Keys are DirectX scan codes (0x44 = F10). Mouse buttons: 0 = left, 1 = right, 2 = middle, 3+ = side buttons.
-
-| Key | |
+## Troubleshooting
+| Problem | Fix |
 |---|---|
-| F7 | Point and click on/off |
-| F8 | Reload the INI |
-| F9 | Cutaway style: Diablo style / Automatic (experimental) |
-| F10 | Camera lock on/off |
-| Page Up / Page Down | Camera more top-down / flatter |
-| Insert | Turn the camera 90 degrees (Lock yaw only) |
+| Nothing changes | Launch through `skse64_loader.exe`. Check that SKSE and Address Library match 1.7.104. |
+| No cursor or F1 menu | Install SKSE Menu Framework |
+| Camera fights you or swings behind you | Turn off 3PCO - 3rd Person Camera Overhaul and recheck TDM (see the PDF) |
+| TDM settings didn't apply | The file must be at `Data\MCM\Settings\TrueDirectionalMovement.ini`, copied with Skyrim closed |
+| Left click does nothing | Bind it to an attack, then press F7 |
+| Clicks land on chairs | F1 → Controls: untick furniture and activators |
+| Low FPS in crowds | F1 → Outlines: lower the distances |
+| Crash indoors | F9 for the Default style, then send a crash log |
+| Inventory is only 10×8 / "Out of space" | Use my [GridInventory_ui.ini](GridInventory_ui.ini), or set `!basegrid = 10, 40` in `Data\SKSE\Plugins\GridInventory_ui.ini` with Skyrim closed |
+
+**Crash logs:** set `[Debug] Cutaway = 1` and `PointClick = 1`, then reproduce the crash. Send the newest `crash-<date>.log` (from [Crash Logger SSE](https://www.nexusmods.com/skyrimspecialedition/mods/59818)) and `ARPGPOV.log` from `Documents\My Games\Skyrim Special Edition\SKSE\` as a [GitHub issue](https://github.com/nannernick/ARPG-POV-Skyrim-mod/issues), on the Nexus Bugs tab, on Discord (**nannernick**) or on Twitter (**@nannernickCS**).
+
+**Uninstall:** speed and carry weight are stored in your save. Reset them in F1 → Player (**Apply now**), save, then remove the mod.
+
+## Reference
+
+**Cutaway:** indoors, the GPU removes everything above a cut line, so walls end cleanly and roofs vanish. *Default* is a flat cut. *Automatic* (experimental) slopes up and rises when nothing blocks your view. The cut stays at one height per floor. The idea comes from machinegod's *Skyrim Camera Disocclusion System*, built separately here.
+
+**Outlines:** true model outlines. Enemies are red, followers blue, you white, NPCs green and loot gold. The renderer is from AmazingBuff's [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses). It's untested with ENB and Community Shaders.
+
+**Loot filter:** gear, potions, scrolls, keys, soul gems, gold, gems and ore always show. Food, ingredients, books and clutter each have a switch. `MinValue` hides cheap items.
+
+INI defaults (the values in the shipped `ARPGPOV.ini`):
 
 <details>
 <summary><b>[Camera]</b> camera locker</summary>
@@ -126,8 +111,8 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Lock on at game start |
 | `LockPitch` / `Pitch` | 1 / 30 | Lock the angle, degrees looking down |
 | `LockYaw` / `Yaw` | 0 / 45 | Lock the compass direction (0 = north) |
-| `Preset` | Path of Exile 2 | Camera look by game: Custom, Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II. Sets pitch, FOV and distance; only the pitch of Diablo II, Path of Exile and Path of Exile 2 was measured, the rest are estimates |
-| `Manage` / `Distance` / `Fov` / `OffsetX` / `OffsetZ` / `WheelZoom` | 1 / 1290 / 50 / 0 / 0 / 0 | Camera distance, field of view, shoulder offsets, mouse-wheel zoom (replaces 3PCO) |
+| `Preset` | Default | Camera look: Default (same as Path of Exile 2), Custom, Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II. Sets pitch, FOV and distance; only the pitch of Diablo II, Path of Exile and Path of Exile 2 was measured, the rest are estimates |
+| `Manage` / `Distance` / `Fov` / `OffsetX` / `OffsetZ` / `WheelZoom` | 1 / 1290 / 50 / 0 / 0 / 0 | Camera distance, field of view, shoulder offsets, mouse-wheel zoom (replaces 3PCO - 3rd Person Camera Overhaul) |
 | `FixInteriorRooms` | 1 | Draw your room when the camera is above the ceiling |
 | `PauseOnTargetLock` | 0 | Let TDM hold the camera while locked on |
 | `KeepHeading` | 1 | Keep the camera's compass heading when TDM turns it (target lock, its camera reset, its auto-adjust), while the mouse isn't turning the camera |
@@ -157,8 +142,8 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `Enabled` | 1 | Splitter on/off |
 | `InteriorOnly` | 1 | Only split indoors |
 | `Height` | 200 | Cut height above the floor (a human is ~128) |
-| `Slope` | 0.3 | Automatic style only: the cut is at `Height` at the bottom of the screen and rises this fast away from the camera. Diablo style is always flat |
-| `AutoLift` | 0 | Starting style: 0 = Diablo style, 1 = Automatic (experimental) |
+| `Slope` | 0.3 | Automatic style only: the cut is at `Height` at the bottom of the screen and rises this fast away from the camera. the Default style is always flat |
+| `AutoLift` | 0 | Starting style: 0 = Default, 1 = Automatic (experimental) |
 | `StyleKey` | 0x43 (F9) | Switch style |
 | `ClearDelay` / `LiftMax` | 0.75 / 1600 | Automatic: seconds of clear view before it lifts, how far it lifts |
 | `ReanchorDistance` / `ReanchorDelay` | 75 / 0.5 | How far and how long you must stand on a new floor before the cut moves |
@@ -214,6 +199,23 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 | `[Outlines] BehindPlayer` | 1 | Things behind your character don't glow over it |
 </details>
 
+<details>
+<summary><b>Angle math</b></summary>
+
+| Game | Pitch |
+|---|---|
+| Diablo II | 30 (2:1 floor tiles: arcsin(1 ÷ 2) = 30°) |
+| Path of Exile | 50 (ring 210 × 160 px at 1080p: arcsin(160 ÷ 210) = 49.6°) |
+| Path of Exile 2 | 30 (ring ~700 × 350 px: arcsin(350 ÷ 700) = 30°) |
+| Diablo IV | not measured yet |
+
+![Path of Exile ring measured at 1920×1080](images/poe1-measurement.jpg)
+
+**Pitch = arcsin(height ÷ width)**
+
+To measure any game, screenshot a circle on the ground (an AoE ring) near the center of the screen, then measure its width and height in pixels. ARPGs use a narrow lens from far away, so also lower the FOV (~40–55) and raise the distance (F1 → Camera).
+</details>
+
 ## Known issues
 - **Interiors can crash** (seen in a cave, and going downstairs with the cutaway on). The Automatic cutaway style is suspected. A Crash Logger SSE log is needed to find it.
 - **Your own outline can flip in front of / behind your character** while moving indoors.
@@ -227,7 +229,11 @@ Skyrim lets you pick up almost anything, so the filter decides what counts as lo
 ## Credits
 - **AmazingBuff**: the outline renderer (`src/render`, `src/base`), from [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses), GPL-3.0.
 - **machinegod**: the cutaway idea, from *Skyrim Camera Disocclusion System*. The cutaway here is a separate implementation.
+- **Shizof**: [3PCO - 3rd Person Camera Overhaul](https://www.nexusmods.com/skyrimspecialedition/mods/18515). ARPG POV's camera distance, FOV and offset handling rebuilds what 3PCO does, and 3PCO was used with this mod until it was built in.
 - CommonLibSSE-NG contributors, the SKSE team, meh321 (Address Library), Thiago099 (SKSE Menu Framework), Ershin (True Directional Movement).
+
+## Contact
+Twitter **@nannernickCS** · Discord **nannernick** · [Issues](https://github.com/nannernick/ARPG-POV-Skyrim-mod/issues)
 
 ## License
 GPL-3.0-or-later, as the plugin links CommonLibSSE-NG and includes GPL-3.0 code from Highlight Lootable Corpses.

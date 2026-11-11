@@ -142,13 +142,13 @@ namespace Menu
 			Checkbox("Enabled", &Settings::CutawayEnabled);
 			Checkbox("Interiors only", &Settings::InteriorOnly);
 
-			const char* const styles[] = { "Automatic (experimental)", "Diablo style - locked height" };
-			int               style = Occlusion::GetAutoLift() ? 0 : 1;
+			const char* const styles[] = { "Default", "Automatic (experimental)" };
+			int               style = Occlusion::GetAutoLift() ? 1 : 0;
 			if (Combo("Style", &style, styles, 2)) {
-				Occlusion::SetAutoLift(style == 0);
-				Settings::AutoLift = style == 0;
+				Occlusion::SetAutoLift(style == 1);
+				Settings::AutoLift = style == 1;
 			}
-			Hint("Diablo style: everything above Height is always cut, flat.\n"
+			Hint("Default: everything above Height is always cut, flat.\n"
 				 "Automatic: never cut lower than that, sloping up away from the camera, and rising further when nothing blocks the view of you.\n"
 				 "Also switched with the style key (F9 by default).");
 
@@ -159,7 +159,7 @@ namespace Menu
 			SliderFloat("Slope away from the camera", &Settings::CutSlope, 0.0f, 2.0f, "%.2f");
 			EndDisabled();
 			Hint("Automatic style only. The cut is at Height at the bottom of the screen and rises this fast further away, so far walls stay.\n"
-				 "Nothing on screen is cut lower than in Diablo style. Higher values leave taller walls near you. 0 = flat.");
+				 "Nothing on screen is cut lower than in the Default style. Higher values leave taller walls near you. 0 = flat.");
 
 			SeparatorText("Height changes");
 			SliderFloat("Smoothing (s)", &Settings::HeightSmoothing, 0.0f, 3.0f, "%.2f");

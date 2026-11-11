@@ -36,17 +36,18 @@ namespace Settings
 		const char* note;
 	};
 	inline constexpr CameraPresetDef CameraPresets[] = {
+		{ "Default", 30.0f, 50.0f, 1290.0f, "This mod's default: the same look as Path of Exile 2." },
 		{ "Skyrim ARPG", 30.0f, 90.0f, 600.0f, "The default before 1.6: wide lens, close camera." },
 		{ "Diablo II", 30.0f, 50.0f, 1290.0f, "Pitch measured (2:1 floor tiles). Lens and distance estimated." },
 		{ "Path of Exile", 50.0f, 50.0f, 1400.0f, "Pitch measured (ring 210 x 160 px at 1080p). Lens and distance estimated." },
-		{ "Path of Exile 2", 30.0f, 50.0f, 1290.0f, "This mod's default. Pitch measured (ring 700 x 350 px). Lens and distance estimated." },
+		{ "Path of Exile 2", 30.0f, 50.0f, 1290.0f, "Pitch measured (ring 700 x 350 px). Lens and distance estimated." },
 		{ "Diablo III", 50.0f, 50.0f, 1200.0f, "Estimated." },
 		{ "Diablo IV", 55.0f, 55.0f, 1000.0f, "Estimated: steeper and closer than older ARPGs." },
 		{ "Last Epoch", 45.0f, 50.0f, 1300.0f, "Estimated." },
 		{ "Grim Dawn", 45.0f, 50.0f, 1350.0f, "Estimated." },
 		{ "Torchlight II", 45.0f, 55.0f, 1150.0f, "Estimated." },
 	};
-	inline std::string CameraPreset = "Path of Exile 2";  // a name from the table, or Custom = the values in the INI
+	inline std::string CameraPreset = "Default";  // a name from the table, or Custom = the values in the INI
 	bool               ApplyCameraPreset(std::string_view a_name);  // false = no such preset
 	// The menu runs on the render thread and the hotkeys on the main thread. Numbers and switches
 	// can be written from either; the preset's name is a string, so it goes through these two.

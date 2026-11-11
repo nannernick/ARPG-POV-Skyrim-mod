@@ -351,8 +351,8 @@ namespace Settings
 		out << "[Camera]\n"
 			<< "; Camera lock on at game start (ToggleKey flips it in game).\n"
 			<< std::format("Enabled = {}\n", b(CameraEnabled))
-			<< "; Preset = Custom uses the Pitch, Distance and Fov lines below. A game's name replaces them with that game's look:\n"
-			<< "; Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II.\n"
+			<< "; Preset = Custom uses the Pitch, Distance and Fov lines below. Default is this mod's look (same as Path of Exile 2).\n"
+			<< "; A game's name replaces them with that game's look: Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II.\n"
 			<< std::format("Preset = {}\n", CameraPreset)
 			<< "; Pitch = degrees looking down (30 = Path of Exile 2). Yaw only applies with LockYaw.\n"
 			<< std::format("LockPitch = {}\nPitch = {}\nLockYaw = {}\nYaw = {}\n", b(LockPitch), Pitch, b(LockYaw), Yaw)
@@ -393,7 +393,7 @@ namespace Settings
 
 		out << "[Cut]\n"
 			<< "; Cut height above the floor. Slope applies to the Automatic style only: the cut is at Height at the bottom of the\n"
-			<< "; screen and rises this fast away from the camera (0 = flat), so walls are never cut lower than in Diablo style.\n"
+			<< "; screen and rises this fast away from the camera (0 = flat), so walls are never cut lower than in the Default style.\n"
 			<< std::format("Height = {}\nSlope = {}\n", CutHeight, CutSlope)
 			<< "; 1 = every mesh uses the cut projection so depth stays consistent.\n"
 			<< std::format("AllGeometry = {}\nRadius = {}\n", b(CutAllGeometry), CutRadius)
@@ -402,7 +402,7 @@ namespace Settings
 			<< std::format("ReanchorDistance = {}\nReanchorDelay = {}\n", ReanchorDistance, ReanchorDelay)
 			<< "; Every height change eases in over ~HeightSmoothing seconds, capped at MaxHeightSpeed.\n"
 			<< std::format("HeightSmoothing = {}\nMaxHeightSpeed = {}\n", HeightSmoothing, MaxHeightSpeed)
-			<< "; Style: 0 = Diablo style, always a flat cut at Height. 1 = Automatic (experimental): never lower than that, sloping up\n"
+			<< "; Style: 0 = Default, always a flat cut at Height. 1 = Automatic (experimental): never lower than that, sloping up\n"
 			<< "; away from the camera, and rising (up to LiftMax) so walls and ceilings show when nothing is in the way.\n"
 			<< "; StyleKey switches in game (0x43 = F9).\n"
 			<< std::format("AutoLift = {}\nStyleKey = {:#x}\nClearDelay = {}\nLiftMax = {}\n\n", b(AutoLift), StyleKey, ClearDelay, LiftMax);
