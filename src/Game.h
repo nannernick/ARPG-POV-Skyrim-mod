@@ -12,8 +12,16 @@ namespace Game
 		kNpc,        // living, not hostile
 		kEnemy,
 		kDoor,
-		kPlayer      // outline only
+		kPlayer,     // outline only
+		kFollower,   // living teammate: its own outline colour
+		kActivator   // named furniture or activator (a seat, a lever): click only, no label
 	};
+
+	// Enemies, NPCs, followers and the player: they move, so their outline points are refreshed every frame.
+	constexpr bool IsLiving(Kind a_kind)
+	{
+		return a_kind == Kind::kEnemy || a_kind == Kind::kNpc || a_kind == Kind::kFollower || a_kind == Kind::kPlayer;
+	}
 
 	struct Target
 	{
@@ -32,6 +40,11 @@ namespace Game
 	// World point -> screen position in 0..1 (x right, y down). False if behind the camera.
 	// Only reads the camera, so the HUD may call it too.
 	bool WorldToScreen(const RE::NiPoint3& a_point, float& a_x, float& a_y);
+
+	// Whether a target is marked all the time (an outline, a ground circle) and not only while the
+	// cursor is on it: its kind's switch, its distance, and how far above or below the player it is.
+	// The one rule the outline renderer, the ground circles and the fallback shapes share. Reads settings only.
+	bool WantsMarker(const Target& a_target);
 
 	void Install();           // per-frame hook
 	void RegisterMenuSink();  // after kDataLoaded

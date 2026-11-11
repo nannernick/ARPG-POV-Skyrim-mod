@@ -221,8 +221,11 @@ namespace Game
 		RE::ThumbstickEvent* MakeStickEvent()
 		{
 			auto* userEvents = RE::UserEvents::GetSingleton();
+			if (!userEvents) {
+				return nullptr;  // not ready yet: SendStick tries again on the next call
+			}
 			auto* evt = RE::malloc<RE::ThumbstickEvent>();
-			if (!evt || !userEvents) {
+			if (!evt) {
 				return nullptr;
 			}
 			std::memset(static_cast<void*>(evt), 0, sizeof(RE::ThumbstickEvent));
@@ -244,7 +247,10 @@ namespace Game
 			if (!handler) {
 				return;
 			}
-			static RE::ThumbstickEvent* evt = MakeStickEvent();
+			static RE::ThumbstickEvent* evt = nullptr;  // made once and reused
+			if (!evt) {
+				evt = MakeStickEvent();
+			}
 			if (!evt) {
 				return;
 			}
@@ -385,6 +391,13 @@ namespace Game
 		constexpr std::uint32_t kGold = Rgb(230, 195, 100);
 		constexpr std::uint32_t kRed = Rgb(255, 60, 60);
 		constexpr std::uint32_t kGreen = Rgb(90, 225, 110);  // same green as the talk cursor
+
+		// Settings keep the follower colour as 0xRRGGBB; targets carry 0xAABBGGRR.
+		std::uint32_t FollowerColor()
+		{
+			const auto c = Settings::OutlineFollowerColor;
+			return Rgb((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+		}
 
 		bool HasKeyword(RE::TESBoundObject* a_base, std::string_view a_keyword)
 		{
@@ -599,6 +612,27 @@ namespace Game
 			       lower.find("dummy") != std::string::npos;
 		}
 
+		// The chests merchants sell from. The game keeps them out of sight (under the floor, behind a
+		// wall), sometimes close enough to pass the height rules, so they are left out by what they
+		// are: every vendor faction names its chest. Built once, after the game data has loaded.
+		const std::unordered_set<RE::FormID>& MerchantChests()
+		{
+			static std::unordered_set<RE::FormID> s_chests;
+			static bool                           s_built = false;
+			if (!s_built) {
+				if (auto* data = RE::TESDataHandler::GetSingleton()) {
+					for (const auto* faction : data->GetFormArray<RE::TESFaction>()) {
+						if (faction && faction->vendorData.merchantContainer) {
+							s_chests.insert(faction->vendorData.merchantContainer->GetFormID());
+						}
+					}
+					s_built = true;
+					logs::info("[game] {} merchant chests left out of outlines and clicks", s_chests.size());
+				}
+			}
+			return s_chests;
+		}
+
 		void Scan(RE::PlayerCharacter* a_player)
 		{
 			auto* tes = RE::TES::GetSingleton();
@@ -657,6 +691,9 @@ namespace Game
 					} else if (actor->IsHostileToActor(a_player)) {
 						target.kind = Kind::kEnemy;
 						target.color = kRed;
+					} else if (actor->IsPlayerTeammate()) {
+						target.kind = Kind::kFollower;
+						target.color = FollowerColor();
 					} else {
 						target.kind = Kind::kNpc;
 						target.color = kGreen;
@@ -679,7 +716,7 @@ namespace Game
 				target.pos = pos;
 				const auto type = base->GetFormType();
 				if (type == RE::FormType::Container) {
-					if (!Settings::Containers) {
+					if (!Settings::Containers || MerchantChests().contains(target.formID)) {
 						return next;
 					}
 					target.kind = Kind::kContainer;
@@ -697,6 +734,18 @@ namespace Game
 						g_arrivalDoor = 0;  // walked away from it: clickable again
 					}
 					target.kind = Kind::kDoor;
+					target.color = kWhite;
+				} else if (type == RE::FormType::Furniture || type == RE::FormType::Activator) {
+					// Seats, levers, the ferry seat: clickable, no label. A name is required, which leaves
+					// out the unnamed trigger boxes and markers the game scatters around.
+					if (!Settings::Activators || a_ref->IsActivationBlocked()) {
+						return next;
+					}
+					const char* name = a_ref->GetDisplayFullName();
+					if (!name || !*name || IsDeveloperName(name)) {
+						return next;
+					}
+					target.kind = Kind::kActivator;
 					target.color = kWhite;
 				} else {
 					const float dist = target.distance;
@@ -758,7 +807,7 @@ namespace Game
 		void PublishTargets()
 		{
 			for (auto& target : g_targets) {
-				if (target.kind != Kind::kEnemy && target.kind != Kind::kNpc && target.kind != Kind::kPlayer) {
+				if (!IsLiving(target.kind)) {
 					continue;
 				}
 				const auto ref = target.handle.get();
@@ -852,7 +901,7 @@ namespace Game
 
 			RE::ObjectRefHandle hovered;
 			Kind                kind = Kind::kItem;
-			if (Hovered(hovered, kind) && (kind == Kind::kEnemy || kind == Kind::kNpc)) {
+			if (Hovered(hovered, kind) && (kind == Kind::kEnemy || kind == Kind::kNpc || kind == Kind::kFollower)) {
 				if (const auto ref = hovered.get()) {
 					to = ref->GetPosition();
 					to.z += std::max(ref->GetHeight(), 40.0f) * 0.6f;
@@ -1041,6 +1090,30 @@ namespace Game
 		return true;
 	}
 
+	bool WantsMarker(const Target& a_target)
+	{
+		// Actors on another level: the same band the labels use above and below, and a tighter
+		// limit below, where the things out of sight are (under the floor, the storey beneath).
+		const bool onLevel = std::fabs(a_target.above) <= Settings::LabelMaxHeightDiff && a_target.above >= -Settings::OutlineMaxBelow;
+		switch (a_target.kind) {
+		case Kind::kEnemy:
+			return Settings::OutlineEnemies && onLevel && a_target.distance <= Settings::OutlineRadius;
+		case Kind::kNpc:
+			return Settings::OutlineNpcs && onLevel && a_target.distance <= Settings::OutlineRadius;
+		case Kind::kFollower:
+			return Settings::OutlineFollowers && onLevel && a_target.distance <= Settings::OutlineRadius;
+		case Kind::kPlayer:
+			return Settings::OutlinePlayer;
+		case Kind::kItem:
+		case Kind::kContainer:
+		case Kind::kCorpse:
+			// Below is handled by the scan (LabelMaxBelow), which drops them from the list altogether.
+			return Settings::OutlineLoot && a_target.above <= Settings::OutlineMaxAbove && a_target.distance <= Settings::OutlineItemRadius;
+		default:
+			return false;  // doors, furniture and activators: only while the cursor is on them
+		}
+	}
+
 	void Install()
 	{
 		// The same slot the camera mod hooks; vtable hooks chain, so both run.
@@ -1136,6 +1209,7 @@ namespace Game
 		g_faceTime = 0.0f;
 		g_scanTimer = 0.0f;
 		State::moveKeysHeld.store(0);
+		Camera::ForgetHeading();
 		g_targets.clear();
 		std::scoped_lock guard(State::lock);
 		State::targets.reset();

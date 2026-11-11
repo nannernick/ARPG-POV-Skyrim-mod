@@ -8,6 +8,9 @@ namespace Input
 {
 	namespace
 	{
+		// AutoLift as the INI last had it, so a reload can tell an edited INI from a style picked with F9.
+		bool g_fileAutoLift = false;
+
 		// Runtime 1.7.99 added two functions to the front of every input handler's table,
 		// which pushes the ones hooked here two slots down.
 		std::size_t HandlerSlot(std::size_t a_slot)
@@ -189,6 +192,9 @@ namespace Input
 				if (a_code == Settings::PitchDownKey) {
 					Camera::AdjustPitch(-Settings::PitchStep);
 				}
+				if (a_code == Settings::YawStepKey) {
+					Camera::StepYaw(90.0f);
+				}
 				if (a_code == Settings::ReloadKey) {
 					Reload();
 					RE::SendHUDMessage::ShowHUDMessage("ARPG POV: settings reloaded");
@@ -219,6 +225,8 @@ namespace Input
 
 	void Install()
 	{
+		g_fileAutoLift = Settings::AutoLift;  // Settings::Load has just run, nothing has switched the style yet
+
 		REL::Relocation<std::uintptr_t> attack{ RE::VTABLE_AttackBlockHandler[0] };
 		AttackButtonHook::func = attack.write_vfunc(HandlerSlot(0x4), AttackButtonHook::thunk);
 
@@ -237,8 +245,8 @@ namespace Input
 			input->AddEventSink(static_cast<RE::BSTEventSink<RE::InputEvent*>*>(Sink::Get()));
 			logs::info("[input] registered: move button {}, pickup button {}, toggle key {:#x}", Settings::MoveButton, Settings::PickupButton,
 				Settings::ToggleKey);
-			logs::info("[input] keys: camera {:#x}, cutaway style {:#x}, pitch {:#x}/{:#x}, reload {:#x}", Settings::CameraToggleKey,
-				Settings::StyleKey, Settings::PitchUpKey, Settings::PitchDownKey, Settings::ReloadKey);
+			logs::info("[input] keys: camera {:#x}, cutaway style {:#x}, pitch {:#x}/{:#x}, yaw step {:#x}, reload {:#x}", Settings::CameraToggleKey,
+				Settings::StyleKey, Settings::PitchUpKey, Settings::PitchDownKey, Settings::YawStepKey, Settings::ReloadKey);
 		} else {
 			logs::error("[input] no input device manager; point and click and the hotkeys are unavailable");
 		}
@@ -247,11 +255,10 @@ namespace Input
 	void Reload()
 	{
 		// Keep the cut style F9 picked unless the INI's AutoLift itself was changed.
-		static bool s_fileAutoLift = Settings::AutoLift;
 		Settings::Load();
 		Camera::SetActive(Settings::CameraEnabled);
-		if (Settings::AutoLift != s_fileAutoLift) {
-			s_fileAutoLift = Settings::AutoLift;
+		if (Settings::AutoLift != g_fileAutoLift) {
+			g_fileAutoLift = Settings::AutoLift;
 			Occlusion::SetAutoLift(Settings::AutoLift);
 		} else {
 			Settings::AutoLift = Occlusion::GetAutoLift();  // so Save to INI keeps the current style

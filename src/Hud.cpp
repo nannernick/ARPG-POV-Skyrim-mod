@@ -103,30 +103,38 @@ namespace Hud
 				return false;
 			case Game::Kind::kCorpse:
 			case Game::Kind::kNpc:
+			case Game::Kind::kFollower:
 				return Settings::Actors;
 			default:
 				return true;
 			}
 		}
 
-		// Whether a target's outline is always drawn (otherwise only while the cursor is on it).
-		bool AlwaysOutlined(Game::Kind a_kind)
+		// A circle on the ground under an actor: 24 points around its feet, projected like the labels.
+		// It is drawn over the picture, so it shows through walls and over the actor's own feet.
+		void DrawGroundCircle(ImDrawList* a_list, const Game::Target& a_target, float a_w, float a_h)
 		{
-			if (!Settings::Outlines) {
-				return false;
+			constexpr int kPoints = 24;
+			ImVec2        points[kPoints];
+			const float   radius = std::clamp(Settings::CircleRadius, 10.0f, 300.0f);
+			bool          onScreen = false;
+			for (int i = 0; i < kPoints; ++i) {
+				const float        angle = static_cast<float>(i) * (2.0f * std::numbers::pi_v<float> / static_cast<float>(kPoints));
+				const RE::NiPoint3 point{ a_target.pos.x + std::cos(angle) * radius, a_target.pos.y + std::sin(angle) * radius, a_target.pos.z + 3.0f };
+				float              u = 0.0f;
+				float              v = 0.0f;
+				if (!Game::WorldToScreen(point, u, v)) {
+					return;  // partly behind the camera
+				}
+				points[i] = ImVec2{ u * a_w, v * a_h };
+				onScreen = onScreen || (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f);
 			}
-			switch (a_kind) {
-			case Game::Kind::kEnemy:
-				return Settings::OutlineEnemies;
-			case Game::Kind::kNpc:
-				return Settings::OutlineNpcs;
-			case Game::Kind::kPlayer:
-				return Settings::OutlinePlayer;
-			case Game::Kind::kItem:
-				return Settings::OutlineItems;
-			default:
-				return false;
+			if (!onScreen) {
+				return;
 			}
+			const auto  alpha = static_cast<std::uint32_t>(std::clamp(Settings::OutlineOpacity, 0.05f, 1.0f) * 255.0f);
+			const ImU32 color = (a_target.color & 0x00FFFFFFu) | (alpha << 24);
+			ImDrawListManager::AddPolyline(a_list, points, kPoints, color, ImDrawFlags_Closed, 2.0f);
 		}
 
 		// Lets the cursor icons draw onto the HUD.
@@ -182,10 +190,12 @@ namespace Hud
 					color = IM_COL32(255, 205, 80, 255);
 					break;
 				case Game::Kind::kNpc:
+				case Game::Kind::kFollower:
 					icon = Cursor::Icon::kMark;
 					color = IM_COL32(90, 225, 110, 255);
 					break;
 				case Game::Kind::kDoor:
+				case Game::Kind::kActivator:
 					icon = Cursor::Icon::kMark;
 					break;
 				default:
@@ -345,14 +355,22 @@ namespace Hud
 				}
 			}
 
-			// 4. Draw: labels, then the cursor on top. The outlines themselves are drawn around the
-			//    real models by the outline renderer; these simple shapes are only the fallback
-			//    if that renderer couldn't start.
+			// 4. Draw: ground circles, labels, then the cursor on top. The outlines themselves are drawn
+			//    around the real models by the outline renderer; these simple shapes are only the
+			//    fallback if that renderer couldn't start.
+			if (Settings::GroundCircles && targets) {
+				for (const auto& target : *targets) {
+					const bool actor = target.kind == Game::Kind::kEnemy || target.kind == Game::Kind::kNpc || target.kind == Game::Kind::kFollower;
+					if (actor && Game::WantsMarker(target)) {
+						DrawGroundCircle(list, target, w, h);
+					}
+				}
+			}
 			if (!Outline::Active()) {
 				for (std::size_t i = 0; i < shapes.size(); ++i) {
 					const auto& target = *shapes[i].target;
 					const bool  hot = i == hovered;
-					if (hot || AlwaysOutlined(target.kind)) {
+					if (hot || (Settings::Outlines && Game::WantsMarker(target))) {
 						DrawOutline(list, shapes[i].outline, target.color, hot ? 2.5f : 1.5f);
 					}
 				}

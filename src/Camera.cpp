@@ -8,6 +8,10 @@ namespace Camera
 	{
 		bool g_active = true;
 
+		// The compass heading the camera is kept at while nothing but True Directional Movement turns it.
+		std::atomic<bool> g_headingValid{ false };
+		float             g_heading = 0.0f;  // radians, camera update only
+
 		float DegToRad(float a_deg) { return a_deg * (std::numbers::pi_v<float> / 180.0f); }
 
 		float NormalizeAngle(float a_angle)
@@ -49,6 +53,23 @@ namespace Camera
 				a_state->freeRotationEnabled = true;
 				const float desired = DegToRad(Settings::Yaw);
 				a_state->freeRotation.x = NormalizeAngle(desired - player->data.angle.z);
+				g_headingValid.store(false);
+			} else if (Settings::KeepHeading && a_state->freeRotationEnabled) {
+				// True Directional Movement turns the camera by itself: toward the target while its lock is
+				// on, behind the character when the lock key is pressed with nothing to lock (its camera
+				// reset), and slowly behind the character while moving (its auto-adjust). All of them write
+				// freeRotation.x from TDM's own update, which runs before this one, so the last word is had
+				// here. While the mouse can turn the camera its heading is followed; otherwise it is put back.
+				const float yaw = NormalizeAngle(player->data.angle.z + a_state->freeRotation.x);
+				const bool  mouseTurns = State::rotateHeld.load() || (!Game::BlockLook() && !IsTargetLocked(player));
+				if (mouseTurns || !g_headingValid.load()) {
+					g_heading = yaw;
+					g_headingValid.store(true);
+				} else {
+					a_state->freeRotation.x = NormalizeAngle(g_heading - player->data.angle.z);
+				}
+			} else {
+				g_headingValid.store(false);
 			}
 
 			if (Settings::LockPitch) {
@@ -190,12 +211,10 @@ namespace Camera
 	// The engine's own camera settings (Skyrim.ini [Camera] / [Display]). 3PCO set these; now this does.
 	void ApplyCameraSettings()
 	{
-		if (!Settings::ManageCamera) {
-			return;
-		}
 		auto* ini = RE::INISettingCollection::GetSingleton();
 		auto* prefs = RE::INIPrefSettingCollection::GetSingleton();
-		static std::unordered_map<std::string, float> s_original;  // the game's values, for WheelZoom = 1
+		static std::unordered_map<std::string, float> s_original;  // the game's values, as they were before this changed them
+		static bool                                   s_applied = false;
 
 		const auto set = [&](const char* a_name, float a_value) {
 			RE::Setting* setting = ini ? ini->GetSetting(a_name) : nullptr;
@@ -209,6 +228,25 @@ namespace Camera
 			s_original.try_emplace(a_name, setting->data.f);
 			setting->data.f = a_value;
 		};
+
+		if (!Settings::ManageCamera) {
+			// Switched off: hand back everything that was changed, so the game or another camera
+			// mod has its own values again and not this mod's last ones.
+			if (s_applied) {
+				for (const auto& [name, value] : s_original) {
+					set(name.c_str(), value);
+				}
+				if (const auto it = s_original.find("fDefaultWorldFOV:Display"); it != s_original.end()) {
+					if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+						camera->GetRuntimeData2().worldFOV = it->second;
+					}
+				}
+				s_applied = false;
+				logs::info("[camera] no longer managed: the game's distance, offsets, zoom and field of view are back");
+			}
+			return;
+		}
+		s_applied = true;
 		const auto restore = [&](const char* a_name) {
 			if (const auto it = s_original.find(a_name); it != s_original.end()) {
 				set(a_name, it->second);
@@ -254,6 +292,9 @@ namespace Camera
 			player->data.angle.x = 0.0f;
 		}
 		s_first = first;
+		if (first) {
+			g_headingValid.store(false);  // back in third person, start from wherever the camera is then
+		}
 	}
 
 	void Install()
@@ -271,11 +312,18 @@ namespace Camera
 	void SetActive(bool a_active)
 	{
 		g_active = a_active;
+		g_headingValid.store(false);
+	}
+
+	void ForgetHeading()
+	{
+		g_headingValid.store(false);
 	}
 
 	void Toggle()
 	{
 		g_active = !g_active;
+		g_headingValid.store(false);
 		RE::SendHUDMessage::ShowHUDMessage(g_active ? "Camera lock: ON" : "Camera lock: OFF");
 		logs::info("[camera] toggled {}", g_active ? "on" : "off");
 	}
@@ -283,12 +331,30 @@ namespace Camera
 	void AdjustPitch(float a_delta)
 	{
 		Settings::Pitch = std::clamp(Settings::Pitch + a_delta, 5.0f, 85.0f);
-		Settings::CameraPreset = "Custom";
+		Settings::SetPresetName("Custom");
 		Settings::Save();
 		static std::string msg;  // keep the text alive in case the HUD queues the pointer
 		msg = std::format("Camera pitch: {:.0f} deg", Settings::Pitch);
 		RE::SendHUDMessage::ShowHUDMessage(msg.c_str());
 		logs::info("[camera] pitch set to {:.0f}", Settings::Pitch);
+	}
+
+	void StepYaw(float a_degrees)
+	{
+		if (!Settings::LockYaw) {
+			RE::SendHUDMessage::ShowHUDMessage("Camera yaw key: turn on Lock yaw first");
+			return;
+		}
+		float yaw = std::fmod(Settings::Yaw + a_degrees, 360.0f);
+		if (yaw < 0.0f) {
+			yaw += 360.0f;
+		}
+		Settings::Yaw = yaw;
+		Settings::Save();
+		static std::string msg;  // keep the text alive in case the HUD queues the pointer
+		msg = std::format("Camera yaw: {:.0f} deg", Settings::Yaw);
+		RE::SendHUDMessage::ShowHUDMessage(msg.c_str());
+		logs::info("[camera] yaw set to {:.0f}", Settings::Yaw);
 	}
 
 	// [GameSettings] entries are engine settings (the ones `setgs` changes). The engine resets them

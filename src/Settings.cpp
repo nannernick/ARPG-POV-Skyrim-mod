@@ -6,6 +6,10 @@ namespace
 
 	using IniMap = std::unordered_map<std::string, std::string>;
 
+	// Load, Save and the preset name can be reached from the render thread (the menu) and the
+	// main thread (hotkeys, reload) at once. Recursive: Load applies a preset while holding it.
+	std::recursive_mutex g_lock;
+
 	std::string Trim(const std::string& a_s)
 	{
 		const auto first = a_s.find_first_not_of(" \t\r\n");
@@ -120,8 +124,21 @@ namespace
 
 namespace Settings
 {
+	std::string PresetName()
+	{
+		std::scoped_lock guard(g_lock);
+		return CameraPreset;
+	}
+
+	void SetPresetName(std::string_view a_name)
+	{
+		std::scoped_lock guard(g_lock);
+		CameraPreset = a_name;
+	}
+
 	bool ApplyCameraPreset(std::string_view a_name)
 	{
+		std::scoped_lock guard(g_lock);
 		for (const auto& preset : CameraPresets) {
 			if (Lower(std::string(a_name)) == Lower(preset.name)) {
 				CameraPreset = preset.name;
@@ -140,6 +157,7 @@ namespace Settings
 
 	void Load()
 	{
+		std::scoped_lock guard(g_lock);
 		std::vector<std::pair<std::string, std::string>> gameSettings;
 		const auto                                       ini = Parse(gameSettings);
 		GameSettings = std::move(gameSettings);
@@ -153,21 +171,29 @@ namespace Settings
 		InvertPitch = GetBool(ini, "Camera.InvertPitch", InvertPitch);
 		PauseOnTargetLock = GetBool(ini, "Camera.PauseOnTargetLock", PauseOnTargetLock);
 		FixInteriorRooms = GetBool(ini, "Camera.FixInteriorRooms", FixInteriorRooms);
+		KeepHeading = GetBool(ini, "Camera.KeepHeading", KeepHeading);
 		ManageCamera = GetBool(ini, "Camera.Manage", ManageCamera);
 		CameraDistance = GetFloat(ini, "Camera.Distance", CameraDistance, 100.0f, 3000.0f);
 		CameraFov = GetFloat(ini, "Camera.Fov", CameraFov, 30.0f, 120.0f);
 		CameraOffsetX = GetFloat(ini, "Camera.OffsetX", CameraOffsetX, -300.0f, 300.0f);
 		CameraOffsetZ = GetFloat(ini, "Camera.OffsetZ", CameraOffsetZ, -300.0f, 300.0f);
 		WheelZoom = GetBool(ini, "Camera.WheelZoom", WheelZoom);
-		// A named preset overrides the pitch, distance and field of view lines above.
-		CameraPreset = "Custom";
-		if (const auto it = ini.find("Camera.Preset"); it != ini.end() && !ApplyCameraPreset(it->second) && Lower(it->second) != "custom") {
-			logs::warn("settings: Camera.Preset = '{}' is not a known preset, using the values in the INI", it->second);
+		// A named preset overrides the pitch, distance and field of view lines above. An INI with
+		// no Preset line but its own camera numbers (from before presets) keeps them as Custom.
+		// With neither, the built-in default (Path of Exile 2) stands.
+		if (const auto it = ini.find("Camera.Preset"); it != ini.end()) {
+			CameraPreset = "Custom";
+			if (!ApplyCameraPreset(it->second) && Lower(it->second) != "custom") {
+				logs::warn("settings: Camera.Preset = '{}' is not a known preset, using the values in the INI", it->second);
+			}
+		} else if (ini.contains("Camera.Pitch") || ini.contains("Camera.Distance") || ini.contains("Camera.Fov")) {
+			CameraPreset = "Custom";
 		}
 		PitchStep = GetFloat(ini, "Camera.PitchStep", PitchStep, 0.5f, 45.0f);
 		CameraToggleKey = GetKey(ini, "Camera.ToggleKey", CameraToggleKey);
 		PitchUpKey = GetKey(ini, "Camera.PitchUpKey", PitchUpKey);
 		PitchDownKey = GetKey(ini, "Camera.PitchDownKey", PitchDownKey);
+		YawStepKey = GetKey(ini, "Camera.YawStepKey", YawStepKey);
 		ReloadKey = GetKey(ini, "Camera.ReloadKey", ReloadKey);
 		CameraDebugLog = GetBool(ini, "Camera.DebugLog", CameraDebugLog);
 
@@ -257,6 +283,7 @@ namespace Settings
 		PickupRange = GetFloat(ini, "Pickup.Range", PickupRange, 50.0f, 1000.0f);
 		Containers = GetBool(ini, "Pickup.Containers", Containers);
 		Actors = GetBool(ini, "Pickup.Actors", Actors);
+		Activators = GetBool(ini, "Pickup.Activators", Activators);
 
 		LabelMode = GetInt(ini, "Labels.Mode", LabelMode, 0, 2);
 		LabelKey = GetCode(ini, "Labels.Key", LabelKey);
@@ -285,15 +312,22 @@ namespace Settings
 		OutlineEnemies = GetBool(ini, "Outlines.Enemies", OutlineEnemies);
 		OutlineNpcs = GetBool(ini, "Outlines.NPCs", OutlineNpcs);
 		OutlinePlayer = GetBool(ini, "Outlines.Player", OutlinePlayer);
-		OutlineItems = GetBool(ini, "Outlines.Items", OutlineItems);
+		OutlineFollowers = GetBool(ini, "Outlines.Followers", OutlineFollowers);
+		OutlineFollowerColor = GetCode(ini, "Outlines.FollowerColor", OutlineFollowerColor) & 0xFFFFFF;
+		// "Loot" was called "Items" before 1.6 (and only covered dropped items); an old INI's line still counts.
+		OutlineLoot = GetBool(ini, "Outlines.Loot", GetBool(ini, "Outlines.Items", OutlineLoot));
 		OutlineThickness = GetInt(ini, "Outlines.Thickness", OutlineThickness, 1, 8);
 		OutlineOpacity = GetFloat(ini, "Outlines.Opacity", OutlineOpacity, 0.05f, 1.0f);
 		OutlineBrightness = GetFloat(ini, "Outlines.Brightness", OutlineBrightness, 0.1f, 1.0f);
 		OutlineFade = GetBool(ini, "Outlines.Fade", OutlineFade);
 		OutlineMaxAbove = GetFloat(ini, "Outlines.MaxAbove", OutlineMaxAbove, 0.0f, 10000.0f);
+		OutlineMaxBelow = GetFloat(ini, "Outlines.MaxBelow", OutlineMaxBelow, 0.0f, 10000.0f);
+		GroundCircles = GetBool(ini, "Outlines.Circles", GroundCircles);
+		CircleRadius = GetFloat(ini, "Outlines.CircleRadius", CircleRadius, 10.0f, 300.0f);
 		OutlineBehindPlayer = GetBool(ini, "Outlines.BehindPlayer", OutlineBehindPlayer);
 		OutlineRadius = GetFloat(ini, "Outlines.Radius", OutlineRadius, 500.0f, 20000.0f);
 		OutlineItemRadius = GetFloat(ini, "Outlines.ItemRadius", OutlineItemRadius, 100.0f, 10000.0f);
+		OutlineMaxParts = GetInt(ini, "Outlines.MaxParts", OutlineMaxParts, 64, 1024);
 
 		PointClickDebugLog = GetBool(ini, "Debug.PointClick", PointClickDebugLog);
 
@@ -302,6 +336,7 @@ namespace Settings
 
 	bool Save()
 	{
+		std::scoped_lock guard(g_lock);
 		std::ofstream out(kIniPath, std::ios::trunc);
 		if (!out.is_open()) {
 			logs::error("settings: can't write {}", kIniPath);
@@ -327,13 +362,18 @@ namespace Settings
 			<< std::format("PauseOnTargetLock = {}\n", b(PauseOnTargetLock))
 			<< "; Indoors, draw the room you're in even when the camera is above the ceiling.\n"
 			<< std::format("FixInteriorRooms = {}\n", b(FixInteriorRooms))
+			<< "; Keep the camera's compass heading when True Directional Movement tries to turn it (target lock, its camera\n"
+			<< "; reset, its auto-adjust). Only acts while the mouse is not turning the camera. 0 = leave the heading to TDM.\n"
+			<< std::format("KeepHeading = {}\n", b(KeepHeading))
 			<< "; Replaces 3PCO. Manage = 1 applies: Distance from you, Fov in degrees, shoulder offsets (0 = centred),\n"
 			<< "; and WheelZoom (0 = the mouse wheel does not zoom; use the change-view key for first person).\n"
 			<< std::format("Manage = {}\nDistance = {}\nFov = {}\nOffsetX = {}\nOffsetZ = {}\nWheelZoom = {}\n", b(ManageCamera), CameraDistance, CameraFov,
 				   CameraOffsetX, CameraOffsetZ, b(WheelZoom))
-			<< "; Keys: 0x44 = F10, 0x49 = Page Up, 0x51 = Page Down, 0x42 = F8. 0 = no key.\n"
+			<< "; Keys: 0x44 = F10, 0xc9 = Page Up, 0xd1 = Page Down, 0x42 = F8. 0 = no key. (0x49 / 0x51 are Numpad 9 / 3.)\n"
 			<< std::format("ToggleKey = {:#x}\nPitchUpKey = {:#x}\nPitchDownKey = {:#x}\nPitchStep = {}\nReloadKey = {:#x}\n",
 				   CameraToggleKey, PitchUpKey, PitchDownKey, PitchStep, ReloadKey)
+			<< "; YawStepKey turns the camera 90 degrees per press (0xd2 = Insert). It only works with LockYaw = 1.\n"
+			<< std::format("YawStepKey = {:#x}\n", YawStepKey)
 			<< std::format("DebugLog = {}\n\n", b(CameraDebugLog));
 
 		out << "[Player]\n"
@@ -419,7 +459,8 @@ namespace Settings
 		out << "; Extra button that uses what's under the cursor (2 = middle mouse / mouse 3). Out of Range, you walk there first.\n";
 		out << std::format("Button = {}\nRange = {}\n", PickupButton, PickupRange);
 		out << "; Containers = chests and barrels can be clicked. Actors = corpses (loot) and NPCs (talk) can be clicked.\n";
-		out << std::format("Containers = {}\nActors = {}\n\n", b(Containers), b(Actors));
+		out << "; Activators = furniture and activators that have a name (seats, levers, the ferry seat) can be clicked. No label.\n";
+		out << std::format("Containers = {}\nActors = {}\nActivators = {}\n\n", b(Containers), b(Actors), b(Activators));
 
 		out << "[Labels]\n";
 		out << "; 0 = only the item under the cursor, 1 = always, 2 = while Key is held (0x38 = Left Alt).\n";
@@ -452,26 +493,44 @@ namespace Settings
 			b(GlobeNumbers), b(GlobeAnimate));
 
 		out << "[Outlines]\n";
-		out << "; True outlines around the model: red = enemies, green = NPCs, white = you, items = their label colour.\n";
+		out << "; True outlines around the model: red = enemies, green = NPCs, FollowerColor = followers, white = you.\n";
 		out << "; Whatever the cursor is on is always outlined.\n";
-		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nPlayer = {}\nItems = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlinePlayer),
-			b(OutlineItems));
+		out << std::format("Enabled = {}\nEnemies = {}\nNPCs = {}\nPlayer = {}\n", b(Outlines), b(OutlineEnemies), b(OutlineNpcs), b(OutlinePlayer));
+		out << "; Followers = your followers / teammates get their own colour (0xRRGGBB) and their own switch.\n";
+		out << std::format("Followers = {}\nFollowerColor = {:#08x}\n", b(OutlineFollowers), OutlineFollowerColor);
+		out << "; Loot = dropped items (their label colour), containers and corpses (gold). Called Items before 1.6.\n";
+		out << "; Weapons and shields an NPC is holding are part of that NPC and can't be outlined separately.\n";
+		out << std::format("Loot = {}\n", b(OutlineLoot));
 		out << "; Thickness = glow size, 1 (a thin line) to 8. Opacity = how strong the glow is. Brightness = how bright\n";
 		out << "; its colours are (lower = darker). Fade = outlines get fainter with distance.\n";
 		out << std::format("Thickness = {}\nOpacity = {}\nBrightness = {}\nFade = {}\n", OutlineThickness, OutlineOpacity, OutlineBrightness, b(OutlineFade));
 		out << "; Radius / ItemRadius: how far from you actors / items get an outline. Each outlined thing costs a little,\n";
 		out << "; so lower the two radii if frames drop.\n";
 		out << std::format("Radius = {}\nItemRadius = {}\n", OutlineRadius, OutlineItemRadius);
+		out << "; MaxParts = most model parts outlined in one frame (64-1024). An armoured character is many parts, so a crowd\n";
+		out << "; can reach it; past it the furthest characters get no outline. Higher outlines more of a crowd and costs frames.\n";
+		out << std::format("MaxParts = {}\n", OutlineMaxParts);
 		out << "; Items, containers and corpses higher than this above your feet get no outline or label (shelves, upper floors).\n";
 		out << std::format("MaxAbove = {}\n", OutlineMaxAbove);
+		out << "; Enemies, NPCs and followers lower than MaxBelow under your feet (or further than [Labels] MaxHeightDiff above\n";
+		out << "; or below) get no outline or circle. Between the two they still glow while the cursor is on them.\n";
+		out << std::format("MaxBelow = {}\n", OutlineMaxBelow);
+		out << "; Circles = a circle on the ground under enemies, NPCs and followers, in the outline's colour. Uses the Enemies,\n";
+		out << "; NPCs and Followers switches above and works with Enabled = 0. Drawn over the scene, so it shows through walls.\n";
+		out << std::format("Circles = {}\nCircleRadius = {}\n", b(GroundCircles), CircleRadius);
 		out << "; 1 = things behind you don't glow over your character.\n";
 		out << std::format("BehindPlayer = {}\n\n", b(OutlineBehindPlayer));
 
 		out << "[Debug]\n"
 			<< std::format("Cutaway = {}\nPointClick = {}\n", b(CutawayDebugLog), b(PointClickDebugLog));
 
+		out.flush();
+		if (!out.good()) {
+			logs::error("settings: writing {} failed", kIniPath);
+			return false;
+		}
 		logs::info("settings: saved to {}", kIniPath);
-		return out.good();
+		return true;
 	}
 
 	const CellOverride* FindCellOverride(const char* a_editorID)

@@ -11,15 +11,16 @@ namespace Settings
 	inline bool          LockYaw = false;             // free mouse rotation by default
 	inline bool          LockPitch = true;
 	inline float         Yaw = 45.0f;                 // world heading when LockYaw: 0 = north, 90 = east
-	inline float         Pitch = 30.0f;               // degrees looking down
+	inline float         Pitch = 30.0f;               // degrees looking down (30 = the Path of Exile 2 default)
 	inline int           PitchMode = 0;               // 0 = write player pitch, 1 = write camera freeRotation.y
 	inline bool          InvertPitch = false;
 	inline bool          PauseOnTargetLock = false;   // let TDM hold the camera while target lock is active
 	inline bool          FixInteriorRooms = true;     // draw the player's room even if the camera is outside it
+	inline bool          KeepHeading = true;          // keep the camera's compass heading when True Directional Movement turns it (target lock, camera reset, auto-adjust)
 	// What 3PCO used to do: a fixed camera distance, no shoulder offsets, a set field of view.
 	inline bool          ManageCamera = true;         // apply the five values below (off = leave the camera to the game or another mod)
-	inline float         CameraDistance = 600.0f;     // how far the camera sits from you
-	inline float         CameraFov = 90.0f;           // field of view, degrees
+	inline float         CameraDistance = 1290.0f;    // how far the camera sits from you
+	inline float         CameraFov = 50.0f;           // field of view, degrees
 	inline float         CameraOffsetX = 0.0f;        // sideways shoulder offset (0 = centred)
 	inline float         CameraOffsetZ = 0.0f;        // height offset
 	inline bool          WheelZoom = false;           // mouse wheel zooms (and can scroll into first person)
@@ -35,22 +36,27 @@ namespace Settings
 		const char* note;
 	};
 	inline constexpr CameraPresetDef CameraPresets[] = {
-		{ "Skyrim ARPG", 30.0f, 90.0f, 600.0f, "This mod's default: wide lens, close camera." },
+		{ "Skyrim ARPG", 30.0f, 90.0f, 600.0f, "The default before 1.6: wide lens, close camera." },
 		{ "Diablo II", 30.0f, 50.0f, 1290.0f, "Pitch measured (2:1 floor tiles). Lens and distance estimated." },
 		{ "Path of Exile", 50.0f, 50.0f, 1400.0f, "Pitch measured (ring 210 x 160 px at 1080p). Lens and distance estimated." },
-		{ "Path of Exile 2", 30.0f, 50.0f, 1290.0f, "Pitch measured (ring 700 x 350 px). Lens and distance estimated." },
+		{ "Path of Exile 2", 30.0f, 50.0f, 1290.0f, "This mod's default. Pitch measured (ring 700 x 350 px). Lens and distance estimated." },
 		{ "Diablo III", 50.0f, 50.0f, 1200.0f, "Estimated." },
 		{ "Diablo IV", 55.0f, 55.0f, 1000.0f, "Estimated: steeper and closer than older ARPGs." },
 		{ "Last Epoch", 45.0f, 50.0f, 1300.0f, "Estimated." },
 		{ "Grim Dawn", 45.0f, 50.0f, 1350.0f, "Estimated." },
 		{ "Torchlight II", 45.0f, 55.0f, 1150.0f, "Estimated." },
 	};
-	inline std::string CameraPreset = "Custom";  // a name from the table, or Custom = the values in the INI
+	inline std::string CameraPreset = "Path of Exile 2";  // a name from the table, or Custom = the values in the INI
 	bool               ApplyCameraPreset(std::string_view a_name);  // false = no such preset
+	// The menu runs on the render thread and the hotkeys on the main thread. Numbers and switches
+	// can be written from either; the preset's name is a string, so it goes through these two.
+	std::string        PresetName();
+	void               SetPresetName(std::string_view a_name);
 	inline float         PitchStep = 5.0f;
 	inline std::uint32_t CameraToggleKey = 0x44;      // F10
-	inline std::uint32_t PitchUpKey = 0x49;           // Page Up
-	inline std::uint32_t PitchDownKey = 0x51;         // Page Down
+	inline std::uint32_t PitchUpKey = 0xC9;           // Page Up (0x49 is Numpad 9)
+	inline std::uint32_t PitchDownKey = 0xD1;         // Page Down (0x51 is Numpad 3)
+	inline std::uint32_t YawStepKey = 0xD2;           // Insert: turn the camera 90 degrees (only with LockYaw)
 	inline std::uint32_t ReloadKey = 0x42;            // F8
 	inline bool          CameraDebugLog = false;
 
@@ -137,6 +143,7 @@ namespace Settings
 	inline float         PickupRange = 150.0f;        // closer than this picks up at once; further walks there first
 	inline bool          Containers = true;           // containers can be clicked
 	inline bool          Actors = true;               // corpses and NPCs can be clicked
+	inline bool          Activators = true;           // named furniture and activators (seats, levers) can be clicked; they get no label
 
 	// [Labels]
 	inline int           LabelMode = 1;               // 0 = only the hovered item, 1 = always, 2 = while LabelKey is held
@@ -170,16 +177,22 @@ namespace Settings
 	inline bool  Outlines = true;
 	inline bool  OutlineEnemies = true;    // red
 	inline bool  OutlineNpcs = false;      // NPCs green (off: only when hovered)
+	inline bool  OutlineFollowers = true;  // followers / teammates, in FollowerColor (off: only when hovered)
+	inline std::uint32_t OutlineFollowerColor = 0x50A0FF;  // 0xRRGGBB
 	inline bool  OutlinePlayer = true;     // you, white
-	inline bool  OutlineItems = false;     // the label's colour (off: only when hovered)
+	inline bool  OutlineLoot = false;      // dropped items (their label's colour), containers and corpses (gold). Off: only when hovered
 	inline int   OutlineThickness = 3;        // glow size: 1 = a thin line; higher widens the line and its glow
 	inline float OutlineOpacity = 0.6f;       // how strong the glow is (1 = solid)
 	inline float OutlineBrightness = 0.7f;    // how bright its colours are (1 = full colour, lower = darker)
 	inline bool  OutlineFade = true;          // outlines get fainter with distance
 	inline float OutlineMaxAbove = 120.0f;    // items, containers and corpses higher than this above your feet get no outline or label
+	inline float OutlineMaxBelow = 150.0f;    // enemies, NPCs and followers lower than this under your feet get no outline or circle unless hovered
+	inline bool  GroundCircles = false;       // a circle on the ground under enemies, NPCs and followers (drawn with the labels, no shader)
+	inline float CircleRadius = 45.0f;        // Skyrim units
 	inline bool  OutlineBehindPlayer = true;  // things behind you don't glow over you
 	inline float OutlineRadius = 1500.0f;     // how far from you actors get an outline
 	inline float OutlineItemRadius = 700.0f;  // how far from you items get an outline (their labels reach further)
+	inline int   OutlineMaxParts = 256;       // most model parts outlined in one frame (an armoured character is many parts); past it the furthest are left out
 
 	// [Debug]
 	inline bool CutawayDebugLog = false;

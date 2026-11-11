@@ -51,6 +51,10 @@ namespace Occlusion
 			RE::Color       farColor[RE::TESWeather::ColorTime::kTotal]{};
 		};
 		std::vector<WeatherBackup> g_weatherBackups;
+
+		// The renderer's clear colour (what shows where nothing is drawn), as it was before it was blackened.
+		bool  g_clearSaved{ false };
+		float g_clearColor[3]{};
 		RE::TESObjectCELL*                              g_lastCell{ nullptr };
 		std::uint32_t                                   g_sweepId{ 0 };
 		float                                           g_sweepTimer{ 0.0f };
@@ -245,6 +249,15 @@ namespace Occlusion
 				}
 			}
 			g_weatherBackups.clear();
+			if (g_clearSaved) {
+				if (auto* renderer = RE::BSGraphics::Renderer::GetSingleton()) {
+					auto& data = renderer->GetRendererData();
+					data.clearColor[0] = g_clearColor[0];
+					data.clearColor[1] = g_clearColor[1];
+					data.clearColor[2] = g_clearColor[2];
+				}
+				g_clearSaved = false;
+			}
 		}
 
 		void BlackenWeather(RE::TESWeather* a_weather)
@@ -316,6 +329,12 @@ namespace Occlusion
 			// What shows where nothing is drawn (through the cut) is the renderer's clear colour.
 			if (auto* renderer = RE::BSGraphics::Renderer::GetSingleton()) {
 				auto& data = renderer->GetRendererData();
+				if (!g_clearSaved) {
+					g_clearColor[0] = data.clearColor[0];
+					g_clearColor[1] = data.clearColor[1];
+					g_clearColor[2] = data.clearColor[2];
+					g_clearSaved = true;
+				}
 				data.clearColor[0] = 0.0f;
 				data.clearColor[1] = 0.0f;
 				data.clearColor[2] = 0.0f;
@@ -566,8 +585,10 @@ namespace Occlusion
 		void Tick(RE::Actor* a_actor, float a_delta)
 		{
 			if (!Settings::CutawayEnabled) {
-				Cut::Deactivate();
-				RestoreFog();  // nothing is cut, so give the cell and the weather their own fog back
+				// Nothing is cut, so hand everything back: the cell's and the weather's own fog, the sky,
+				// and any meshes the legacy mode had hidden. (The last cell is forgotten too, so switching
+				// the cutaway back on sets the interior up again.)
+				RestoreAll();
 				return;
 			}
 			auto* player = RE::PlayerCharacter::GetSingleton();

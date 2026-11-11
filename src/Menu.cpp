@@ -59,17 +59,18 @@ namespace Menu
 		void __stdcall RenderCamera()
 		{
 			SeparatorText("Preset");
-			int current = 0;  // 0 = Custom
+			int               current = 0;  // 0 = Custom
+			const std::string preset = Settings::PresetName();
 			std::vector<const char*> names{ "Custom" };
 			for (int i = 0; i < static_cast<int>(std::size(Settings::CameraPresets)); ++i) {
 				names.push_back(Settings::CameraPresets[i].name);
-				if (Settings::CameraPreset == Settings::CameraPresets[i].name) {
+				if (preset == Settings::CameraPresets[i].name) {
 					current = i + 1;
 				}
 			}
 			if (Combo("Look", &current, names.data(), static_cast<int>(names.size()))) {
 				if (current == 0) {
-					Settings::CameraPreset = "Custom";
+					Settings::SetPresetName("Custom");
 				} else {
 					Settings::ApplyCameraPreset(names[current]);
 					ApplyCamera();
@@ -97,6 +98,7 @@ namespace Menu
 			SliderFloat("Yaw (compass degrees)", &Settings::Yaw, 0.0f, 360.0f, "%.0f");
 			EndDisabled();
 			SliderFloat("Pitch key step", &Settings::PitchStep, 1.0f, 15.0f, "%.0f");
+			TextDisabled("The yaw key (Insert by default) turns a locked yaw 90 degrees per press.");
 
 			SeparatorText("Distance and view");
 			bool managed = false;
@@ -113,7 +115,7 @@ namespace Menu
 			Hint("Off: the wheel does nothing and the distance stays fixed. Use the change-view key for first person.");
 			EndDisabled();
 			if (custom || view) {
-				Settings::CameraPreset = "Custom";
+				Settings::SetPresetName("Custom");
 			}
 			if (managed || view) {
 				ApplyCamera();
@@ -123,6 +125,11 @@ namespace Menu
 			Checkbox("Fix interior rooms", &Settings::FixInteriorRooms);
 			Hint("Indoors, draw the room you're in even when the camera is above the ceiling.");
 			Checkbox("Pause on TDM target lock", &Settings::PauseOnTargetLock);
+			Hint("Hands the whole camera (pitch and heading) to True Directional Movement while its target lock is on.");
+			Checkbox("Keep the camera heading (override TDM)", &Settings::KeepHeading);
+			Hint("True Directional Movement turns the camera toward a locked target, and swings it behind your character\n"
+				 "when you press lock-on with nothing to lock or keep moving. On: the heading stays where you left it\n"
+				 "unless you turn the camera with the mouse. Does nothing with Lock yaw (that already fixes the heading).");
 			Checkbox("Invert pitch", &Settings::InvertPitch);
 			Checkbox("Camera debug log", &Settings::CameraDebugLog);
 
@@ -211,6 +218,8 @@ namespace Menu
 			Hint("Closer than this uses the thing at once. Further away, you walk there first.");
 			Checkbox("Containers can be clicked", &Settings::Containers);
 			Checkbox("Corpses and NPCs can be clicked", &Settings::Actors);
+			Checkbox("Furniture and activators can be clicked", &Settings::Activators);
+			Hint("Seats, levers, the ferry seat: anything of that sort that has a name. They get no label and only glow under the cursor.");
 
 			SeparatorText("Combat");
 			Checkbox("Hold attack to keep attacking", &Settings::HoldToAttack);
@@ -232,9 +241,28 @@ namespace Menu
 			Checkbox("Enemies (red)", &Settings::OutlineEnemies);
 			SameLine();
 			Checkbox("NPCs (green)", &Settings::OutlineNpcs);
+			Checkbox("Followers", &Settings::OutlineFollowers);
+			Hint("Your followers and anyone else on your side as a teammate. Other friendly NPCs use the NPCs tick.");
+			SameLine();
+			float follower[3] = { static_cast<float>((Settings::OutlineFollowerColor >> 16) & 0xFF) / 255.0f,
+				static_cast<float>((Settings::OutlineFollowerColor >> 8) & 0xFF) / 255.0f, static_cast<float>(Settings::OutlineFollowerColor & 0xFF) / 255.0f };
+			if (ColorEdit3("Follower colour", follower, 0)) {
+				const auto channel = [](float a_v) { return static_cast<std::uint32_t>(std::lround(std::clamp(a_v, 0.0f, 1.0f) * 255.0f)); };
+				Settings::OutlineFollowerColor = (channel(follower[0]) << 16) | (channel(follower[1]) << 8) | channel(follower[2]);
+			}
 			Checkbox("Your character (white)", &Settings::OutlinePlayer);
 			SameLine();
-			Checkbox("Items", &Settings::OutlineItems);
+			Checkbox("Loot", &Settings::OutlineLoot);
+			Hint("Dropped items (in their label's colour), containers and corpses (gold). Off: they only glow under the cursor.\n"
+				 "A weapon or shield an NPC is holding is part of that NPC and can't be outlined by itself.");
+
+			SeparatorText("Ground circles");
+			Checkbox("Circles under enemies, NPCs and followers", &Settings::GroundCircles);
+			Hint("A ring on the ground in the outline's colour. Uses the Enemies, NPCs and Followers ticks above and works with\n"
+				 "Outlines off, so it can replace the outlines or go with them. It is drawn over the picture, so it shows through walls.");
+			BeginDisabled(!Settings::GroundCircles);
+			SliderFloat("Circle size", &Settings::CircleRadius, 10.0f, 150.0f, "%.0f");
+			EndDisabled();
 
 			SeparatorText("Glow");
 			SliderInt("Glow size", &Settings::OutlineThickness, 1, 8);
@@ -248,7 +276,13 @@ namespace Menu
 			SeparatorText("Distances");
 			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
 			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
-			Hint("Items further than this still get a label, just no outline. Lower both distances if frames drop.");
+			SliderInt("Most model parts per frame", &Settings::OutlineMaxParts, 64, 1024);
+			Hint("An armoured character is many parts, so a crowd can reach this; past it the furthest characters get no outline.\n"
+				 "Higher outlines more of a crowd and costs frames.");
+			Hint("Items, containers and corpses. Items further than this still get a label, just no outline. Lower both distances if frames drop.");
+			SliderFloat("No actors lower than", &Settings::OutlineMaxBelow, 0.0f, 1000.0f, "%.0f");
+			Hint("Enemies, NPCs and followers this far below your feet get no outline or circle unless the cursor is on them\n"
+				 "(things under the floor, the storey below). Raise it if enemies downhill lose their outline.");
 
 			Footer();
 		}
@@ -312,8 +346,8 @@ namespace Menu
 			}
 
 			SeparatorText("Keys");
-			TextWrapped("Camera on/off: %#x   Cutaway style: %#x   Pitch up/down: %#x / %#x   Reload: %#x",
-				Settings::CameraToggleKey, Settings::StyleKey, Settings::PitchUpKey, Settings::PitchDownKey, Settings::ReloadKey);
+			TextWrapped("Camera on/off: %#x   Cutaway style: %#x   Pitch up/down: %#x / %#x   Yaw 90 degrees: %#x   Reload: %#x",
+				Settings::CameraToggleKey, Settings::StyleKey, Settings::PitchUpKey, Settings::PitchDownKey, Settings::YawStepKey, Settings::ReloadKey);
 			TextDisabled("Change keys in the INI (DirectX scan codes), then Reload.");
 
 			Footer();

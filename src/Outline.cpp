@@ -26,7 +26,11 @@ namespace Outline
 		// important first (see Priority).
 		constexpr std::size_t kMaxTargets = 64;
 		constexpr float       kDepthMargin = 40.0f;  // Skyrim units
-		constexpr std::size_t kMaxGeometries = Max_Render_Geometries_Per_Frame;
+		// Most model parts drawn in one frame, from the settings (the renderer's own default is Max_Render_Geometries_Per_Frame).
+		std::size_t MaxParts()
+		{
+			return static_cast<std::size_t>(std::clamp(Settings::OutlineMaxParts, 64, 1024));
+		}
 
 		std::atomic<bool> g_hooked{ false };
 		std::atomic<bool> g_failed{ false };
@@ -34,6 +38,7 @@ namespace Outline
 		struct Entry
 		{
 			RE::FormID        formID;
+			bool              sticky;  // was drawn last frame
 			RE::NiPoint3      centre;
 			float             radius;
 			float             distance;
@@ -50,24 +55,15 @@ namespace Outline
 			if (loot && a_target.above > Settings::OutlineMaxAbove) {
 				return false;
 			}
+			// Actors on another level (a storey up or down, under the ground) get none either, indoors
+			// and out: the same height band the labels use.
+			if (Game::IsLiving(a_target.kind) && a_target.kind != Game::Kind::kPlayer && std::fabs(a_target.above) > Settings::LabelMaxHeightDiff) {
+				return false;
+			}
 			if (a_hovered) {
 				return true;  // otherwise, whatever the cursor is on is always outlined
 			}
-			if (!Settings::Outlines) {
-				return false;
-			}
-			switch (a_target.kind) {
-			case Game::Kind::kEnemy:
-				return Settings::OutlineEnemies && a_target.distance <= Settings::OutlineRadius;
-			case Game::Kind::kNpc:
-				return Settings::OutlineNpcs && a_target.distance <= Settings::OutlineRadius;
-			case Game::Kind::kPlayer:
-				return Settings::OutlinePlayer;
-			case Game::Kind::kItem:
-				return Settings::OutlineItems && a_target.distance <= Settings::OutlineItemRadius;
-			default:
-				return false;
-			}
+			return Settings::Outlines && Game::WantsMarker(a_target);
 		}
 
 		int Priority(const Game::Target& a_target, bool a_hovered)
@@ -75,15 +71,19 @@ namespace Outline
 			if (a_hovered) {
 				return 0;
 			}
+			// The player comes before the crowd: when there are more model parts than one frame may
+			// draw (see MaxParts), the last in line are the ones left out.
 			switch (a_target.kind) {
-			case Game::Kind::kEnemy:
-				return 1;
 			case Game::Kind::kPlayer:
+				return 1;
+			case Game::Kind::kEnemy:
 				return 2;
-			case Game::Kind::kNpc:
+			case Game::Kind::kFollower:
 				return 3;
-			default:
+			case Game::Kind::kNpc:
 				return 4;
+			default:
+				return 5;
 			}
 		}
 
@@ -255,7 +255,8 @@ namespace Outline
 					entry.formID = target.formID;
 					entry.distance = target.distance;
 					entry.priority = Priority(target, hot);
-					entry.living = target.kind == Game::Kind::kEnemy || target.kind == Game::Kind::kNpc || target.kind == Game::Kind::kPlayer;
+					entry.living = Game::IsLiving(target.kind);
+					entry.sticky = _drawn.contains(target.formID);
 					// A soft glow: colours darkened, drawn part-transparent, fainter with distance.
 					// The thing under the cursor stays at full strength so it stands out.
 					const float bright = hot ? 1.0f : std::clamp(Settings::OutlineBrightness, 0.1f, 1.0f);
@@ -273,8 +274,18 @@ namespace Outline
 				if (entries.empty()) {
 					return;
 				}
+				// Most important first, then whatever was drawn last frame, then nearest. The order only
+				// matters when there is more than one frame may draw (kMaxTargets, MaxParts); keeping
+				// last frame's picks ahead stops the outlines hopping between actors in a crowd as their
+				// distances change.
 				std::sort(entries.begin(), entries.end(), [](const Entry& a_lhs, const Entry& a_rhs) {
-					return a_lhs.priority != a_rhs.priority ? a_lhs.priority < a_rhs.priority : a_lhs.distance < a_rhs.distance;
+					if (a_lhs.priority != a_rhs.priority) {
+						return a_lhs.priority < a_rhs.priority;
+					}
+					if (a_lhs.sticky != a_rhs.sticky) {
+						return a_lhs.sticky;
+					}
+					return a_lhs.distance < a_rhs.distance;
 				});
 				if (entries.size() > kMaxTargets) {
 					entries.resize(kMaxTargets);
@@ -357,16 +368,22 @@ namespace Outline
 				behind.reserve(entries.size());
 				std::uint32_t index = 0;
 				std::size_t   total = 0;
+				std::size_t   leftOut = 0;
+				const auto    maxParts = MaxParts();
+				_drawn.clear();
 				for (const auto& entry : entries) {
 					std::vector<RenderGeometry> group;
 					fetch(entry.formID, entry.living, group);
 					if (group.empty()) {
 						continue;
 					}
-					if (total + group.size() > kMaxGeometries) {
-						break;
+					// Out of room for this one. Keep going: a smaller model further down may still fit.
+					if (total + group.size() > maxParts) {
+						++leftOut;
+						continue;
 					}
 					total += group.size();
+					_drawn.insert(entry.formID);
 					for (auto& part : group) {
 						part.target_index = index;
 					}
@@ -394,9 +411,15 @@ namespace Outline
 				if (playerDepth > 0.0f && std::find(behind.begin(), behind.end(), std::uint8_t{ 1 }) != behind.end()) {
 					std::vector<RenderGeometry> occluder;
 					fetch(player->GetFormID(), true, occluder);
-					if (!occluder.empty() && total + occluder.size() <= kMaxGeometries * 2) {
+					if (!occluder.empty() && total + occluder.size() <= maxParts * 2) {
 						_mask.set_occluder(std::move(occluder), std::move(behind));
 					}
+				}
+
+				// For tracking down outlines that come and go in crowds: says when the part limit was hit.
+				if (leftOut > 0 && Settings::PointClickDebugLog && a_frame - _lastBudgetLog > 300) {
+					_lastBudgetLog = a_frame;
+					logs::info("[outline] part limit reached: {} parts drawn for {} targets, {} targets left out", total, geometries.size(), leftOut);
 				}
 
 				if (!geometries.empty()) {
@@ -408,8 +431,10 @@ namespace Outline
 			std::uint32_t                               _lastFrame{ std::numeric_limits<std::uint32_t>::max() };
 			std::unique_ptr<CommonStates>               _states;
 			Mask::MaskOverlay                           _mask;
-			std::unordered_map<RE::FormID, std::size_t> _counts;
-			std::unordered_map<RE::FormID, bool> _behind;  // per target: currently behind the player  // model part count when each target was last collected
+			std::unordered_map<RE::FormID, std::size_t> _counts;  // model part count when each target was last collected
+			std::unordered_map<RE::FormID, bool>        _behind;  // per target: currently behind the player
+			std::unordered_set<RE::FormID>              _drawn;   // targets outlined on the last frame
+			std::uint32_t                               _lastBudgetLog{ 0 };
 			bool                                        _ready{ false };
 		};
 
