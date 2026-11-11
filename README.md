@@ -72,9 +72,9 @@ Click **Save to INI** to keep your changes. The INI is `Data/SKSE/Plugins/ARPGPO
 | F1 / F7 / F8 | Settings / point and click on-off / reload INI |
 | F9 / F10 | Cutaway style / camera lock on-off |
 | Page Up / Page Down | Camera pitch |
-| Insert | Turn 90° (with Lock yaw on) |
+| F2 | Turn 90° (with Lock yaw on). Insert before 1.6.1; an INI you kept still has Insert |
 
-Cursor: a red sword means attack, a gold bag means loot, an exclamation mark means talk (green) or use (white), and an arrow means move.
+Cursor: a red sword means attack, a gold bag means loot, an exclamation mark means talk (green) or use (white), and an arrow means move. A small ring on the ground marks where a click is sending you.
 
 ## Troubleshooting
 | Problem | Fix |
@@ -97,7 +97,7 @@ Cursor: a red sword means attack, a gold bag means loot, an exclamation mark mea
 
 **Cutaway:** indoors, the GPU removes everything above a cut line, so walls end cleanly and roofs vanish. *Default* is a flat cut. *Automatic* (experimental) slopes up and rises when nothing blocks your view. The cut stays at one height per floor. The idea comes from machinegod's *Skyrim Camera Disocclusion System*, built separately here.
 
-**Outlines:** true model outlines. Enemies are red, followers blue, you white, NPCs green and loot gold. The renderer is from AmazingBuff's [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses). It's untested with ENB and Community Shaders.
+**Outlines:** true model outlines. Enemies are red, followers blue, you white, NPCs green, loot gold and quest items bright green. A character is outlined whole or not at all. The renderer is from AmazingBuff's [Highlight Lootable Corpses](https://github.com/AmazingBuff/HighlightLootableCorpses). It's untested with ENB and Community Shaders.
 
 **Loot filter:** gear, potions, scrolls, keys, soul gems, gold, gems and ore always show. Food, ingredients, books and clutter each have a switch. `MinValue` hides cheap items.
 
@@ -119,7 +119,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `PitchMode` / `InvertPitch` | 0 / 0 | Leave at 0 unless the camera looks up |
 | `ToggleKey` | 0x44 (F10) | Camera on/off |
 | `PitchUpKey` / `PitchDownKey` / `PitchStep` | 0xC9 (PgUp) / 0xD1 (PgDn) / 5 | Change pitch in game |
-| `YawStepKey` | 0xD2 (Insert) | Turn the camera 90 degrees per press. Only with `LockYaw = 1` |
+| `YawStepKey` | 0x3C (F2) | Turn the camera 90 degrees per press. Only with `LockYaw = 1`. Was 0xD2 (Insert) before 1.6.1 |
 | `ReloadKey` | 0x42 (F8) | Reload the INI |
 | `DebugLog` | 0 | Log camera values once a second |
 </details>
@@ -168,6 +168,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | Setting | Default | |
 |---|---|---|
 | `[PointClick] Enabled` / `ToggleKey` | 1 / 0x41 (F7) | On at start, on/off key |
+| `[PointClick] ClickMarker` | 1 | A small ring on the ground where a click is sending you. It fades when you arrive or cancel |
 | `[Cursor] Sensitivity` / `Size` | 1 / 1 | Cursor speed and size |
 | `[Cursor] Ring` | 1 | Ring behind the sword, bag and exclamation mark, in the symbol's colour |
 | `[Cursor] InMenus` | 1 | Use this cursor in the inventory, containers, barter and other menus, starting where it was |
@@ -186,6 +187,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` / `Animate` | 1 / 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, numbers, moving liquid |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Player` / `Loot` | 1 / 1 / 0 / 1 / 0 | Outlines on, and per group (hovered things always glow). `Loot` = dropped items, containers and corpses (`Items` before 1.6) |
 | `[Outlines] Followers` / `FollowerColor` | 1 / 0x50A0FF | Followers' own switch and colour (0xRRGGBB) |
+| `[Outlines] QuestItems` / `QuestItemColor` | 1 / 0x39FF14 | Quest items lying in the world always get a label and an outline in this colour, with `Loot = 0` too and whatever the loot filter says. `ItemRadius` and the height limits still apply |
 | `[Outlines] Circles` / `CircleRadius` | 0 / 45 | Ground circles under enemies, NPCs and followers, and their size |
 | `[Combat] HoldToAttack` / `PowerAttackKey` | 1 / 0x38 | Holding attack keeps swinging; with the key (Left Alt) held it's a power attack |
 | `[Combat] AutoAttack` | 0 | While locked on, one press of attack starts auto-attack and the next stops it |
@@ -194,6 +196,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 5 / 0.9 / 0.9 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |
 | `[Outlines] MaxParts` | 256 | Most model parts outlined in one frame (64-1024). Armoured crowds can reach it; higher outlines more of them and costs frames |
+| `[Outlines] Partial` | 0 | 0 = a character whose model could only be read in part gets no outline unless the cursor is on it. 1 = outline whatever was read |
 | `[Outlines] MaxAbove` | 120 | Items, containers and corpses higher than this above your feet get no outline or label |
 | `[Outlines] MaxBelow` | 150 | Enemies, NPCs and followers lower than this under your feet get no outline or circle unless the cursor is on them |
 | `[Outlines] BehindPlayer` | 1 | Things behind your character don't glow over it |
@@ -216,10 +219,21 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 To measure any game, screenshot a circle on the ground (an AoE ring) near the center of the screen, then measure its width and height in pixels. ARPGs use a narrow lens from far away, so also lower the FOV (~40–55) and raise the distance (F1 → Camera).
 </details>
 
+## Upcoming features
+Planned, not in this version:
+- **Right mouse button, BG3 style:** drag to rotate the camera, press on an enemy for the left-hand action.
+- **Custom cursor image** and more cursor options.
+- **Better auto-attack:** click an enemy once and keep attacking it, with bows, staves and spells too.
+- **Camera only in combat**, with a battle transition.
+- **Pathfinding** for click-to-move.
+- **An MCM settings page.**
+
 ## Known issues
 - **Interiors can crash** (seen in a cave, and going downstairs with the cutaway on). The Automatic cutaway style is suspected. A Crash Logger SSE log is needed to find it.
 - **Your own outline can flip in front of / behind your character** while moving indoors.
-- **Outlines can jump between characters in crowds**, most with armoured ones. 1.6 changes how the outlined set is picked and adds `[Outlines] MaxParts`; whether that cures it needs testing.
+- **Outlines could show only fragments of a character in a crowd** (a helmet, boots, bracers) in 1.6.0. From 1.6.1 a character is outlined whole or not at all, and its model is read again while it is still loading. Needs testing. If a kind of enemy now never gets an outline, set `[Outlines] Partial = 1` and send `ARPGPOV.log`.
+- **Quest items are found by the game's quest-object flag.** Items a quest doesn't flag (many dragon claws on their pedestals) keep their normal colour.
+- **The 90° yaw key is F2 from 1.6.1** (it was Insert). An INI you kept still has `YawStepKey = 0xd2`.
 - **The pitch keys changed code in 1.6** to the real Page Up / Page Down (0xC9 / 0xD1). Before, the INI held 0x49 / 0x51, which are Numpad 9 / Numpad 3. An INI you kept still has the old codes.
 - **Cobwebs and other ceiling-level props** can be missing under the cut.
 - **Spells can still hit the ground** if True Directional Movement steers the projectile.

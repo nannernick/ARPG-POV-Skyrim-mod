@@ -98,7 +98,7 @@ namespace Menu
 			SliderFloat("Yaw (compass degrees)", &Settings::Yaw, 0.0f, 360.0f, "%.0f");
 			EndDisabled();
 			SliderFloat("Pitch key step", &Settings::PitchStep, 1.0f, 15.0f, "%.0f");
-			TextDisabled("The yaw key (Insert by default) turns a locked yaw 90 degrees per press.");
+			TextDisabled("The yaw key (F2 by default) turns a locked yaw 90 degrees per press.");
 
 			SeparatorText("Distance and view");
 			bool managed = false;
@@ -204,6 +204,8 @@ namespace Menu
 
 			SeparatorText("Movement");
 			Checkbox("Hold to keep moving", &Settings::HoldToMove);
+			Checkbox("Ring where you clicked", &Settings::ClickMarker);
+			Hint("A small ring on the ground where a click is sending you. It fades when you arrive, click again or take over with WASD.");
 			SliderFloat("Stop distance", &Settings::ArriveRadius, 5.0f, 200.0f, "%.0f");
 			SliderFloat("Max click distance", &Settings::MaxDistance, 500.0f, 10000.0f, "%.0f");
 			const char* const modes[] = { "Auto", "True Directional Movement", "Turn the player (no TDM)" };
@@ -255,6 +257,16 @@ namespace Menu
 			Checkbox("Loot", &Settings::OutlineLoot);
 			Hint("Dropped items (in their label's colour), containers and corpses (gold). Off: they only glow under the cursor.\n"
 				 "A weapon or shield an NPC is holding is part of that NPC and can't be outlined by itself.");
+			Checkbox("Quest items", &Settings::OutlineQuestItems);
+			Hint("Quest items lying in the world always get a label and an outline in their own colour, with Loot off too and\n"
+				 "whatever the loot filter says. The item distance and the height limits still apply.");
+			SameLine();
+			float quest[3] = { static_cast<float>((Settings::OutlineQuestItemColor >> 16) & 0xFF) / 255.0f,
+				static_cast<float>((Settings::OutlineQuestItemColor >> 8) & 0xFF) / 255.0f, static_cast<float>(Settings::OutlineQuestItemColor & 0xFF) / 255.0f };
+			if (ColorEdit3("Quest item colour", quest, 0)) {
+				const auto channel = [](float a_v) { return static_cast<std::uint32_t>(std::lround(std::clamp(a_v, 0.0f, 1.0f) * 255.0f)); };
+				Settings::OutlineQuestItemColor = (channel(quest[0]) << 16) | (channel(quest[1]) << 8) | channel(quest[2]);
+			}
 
 			SeparatorText("Ground circles");
 			Checkbox("Circles under enemies, NPCs and followers", &Settings::GroundCircles);
@@ -276,10 +288,14 @@ namespace Menu
 			SeparatorText("Distances");
 			SliderFloat("Actor outline distance", &Settings::OutlineRadius, 500.0f, 10000.0f, "%.0f");
 			SliderFloat("Item outline distance", &Settings::OutlineItemRadius, 100.0f, 5000.0f, "%.0f");
+			Hint("Items, containers and corpses. Items further than this still get a label, just no outline. Lower both distances if frames drop.");
 			SliderInt("Most model parts per frame", &Settings::OutlineMaxParts, 64, 1024);
 			Hint("An armoured character is many parts, so a crowd can reach this; past it the furthest characters get no outline.\n"
 				 "Higher outlines more of a crowd and costs frames.");
-			Hint("Items, containers and corpses. Items further than this still get a label, just no outline. Lower both distances if frames drop.");
+			Checkbox("Outline half-read characters", &Settings::OutlinePartial);
+			Hint("Off: a character gets its whole outline or none. If part of its model can't be read (still loading, or a mesh the\n"
+				 "outline renderer can't handle) it is left out, except under the cursor. On: whatever was read is outlined, even if\n"
+				 "that is only a helmet or a pair of boots.");
 			SliderFloat("No actors lower than", &Settings::OutlineMaxBelow, 0.0f, 1000.0f, "%.0f");
 			Hint("Enemies, NPCs and followers this far below your feet get no outline or circle unless the cursor is on them\n"
 				 "(things under the floor, the storey below). Raise it if enemies downhill lose their outline.");

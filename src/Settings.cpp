@@ -261,6 +261,7 @@ namespace Settings
 
 		PointClickEnabled = GetBool(ini, "PointClick.Enabled", PointClickEnabled);
 		ToggleKey = GetCode(ini, "PointClick.ToggleKey", ToggleKey);
+		ClickMarker = GetBool(ini, "PointClick.ClickMarker", ClickMarker);
 
 		Sensitivity = GetFloat(ini, "Cursor.Sensitivity", Sensitivity, 0.1f, 10.0f);
 		CursorSize = GetFloat(ini, "Cursor.Size", CursorSize, 0.5f, 4.0f);
@@ -316,6 +317,8 @@ namespace Settings
 		OutlineFollowerColor = GetCode(ini, "Outlines.FollowerColor", OutlineFollowerColor) & 0xFFFFFF;
 		// "Loot" was called "Items" before 1.6 (and only covered dropped items); an old INI's line still counts.
 		OutlineLoot = GetBool(ini, "Outlines.Loot", GetBool(ini, "Outlines.Items", OutlineLoot));
+		OutlineQuestItems = GetBool(ini, "Outlines.QuestItems", OutlineQuestItems);
+		OutlineQuestItemColor = GetCode(ini, "Outlines.QuestItemColor", OutlineQuestItemColor) & 0xFFFFFF;
 		OutlineThickness = GetInt(ini, "Outlines.Thickness", OutlineThickness, 1, 8);
 		OutlineOpacity = GetFloat(ini, "Outlines.Opacity", OutlineOpacity, 0.05f, 1.0f);
 		OutlineBrightness = GetFloat(ini, "Outlines.Brightness", OutlineBrightness, 0.1f, 1.0f);
@@ -328,6 +331,7 @@ namespace Settings
 		OutlineRadius = GetFloat(ini, "Outlines.Radius", OutlineRadius, 500.0f, 20000.0f);
 		OutlineItemRadius = GetFloat(ini, "Outlines.ItemRadius", OutlineItemRadius, 100.0f, 10000.0f);
 		OutlineMaxParts = GetInt(ini, "Outlines.MaxParts", OutlineMaxParts, 64, 1024);
+		OutlinePartial = GetBool(ini, "Outlines.Partial", OutlinePartial);
 
 		PointClickDebugLog = GetBool(ini, "Debug.PointClick", PointClickDebugLog);
 
@@ -372,7 +376,7 @@ namespace Settings
 			<< "; Keys: 0x44 = F10, 0xc9 = Page Up, 0xd1 = Page Down, 0x42 = F8. 0 = no key. (0x49 / 0x51 are Numpad 9 / 3.)\n"
 			<< std::format("ToggleKey = {:#x}\nPitchUpKey = {:#x}\nPitchDownKey = {:#x}\nPitchStep = {}\nReloadKey = {:#x}\n",
 				   CameraToggleKey, PitchUpKey, PitchDownKey, PitchStep, ReloadKey)
-			<< "; YawStepKey turns the camera 90 degrees per press (0xd2 = Insert). It only works with LockYaw = 1.\n"
+			<< "; YawStepKey turns the camera 90 degrees per press (0x3c = F2; it was Insert, 0xd2, before 1.6.1). It only works with LockYaw = 1.\n"
 			<< std::format("YawStepKey = {:#x}\n", YawStepKey)
 			<< std::format("DebugLog = {}\n\n", b(CameraDebugLog));
 
@@ -431,7 +435,9 @@ namespace Settings
 
 		out << "[PointClick]\n";
 		out << "; Point-and-click on at game start. ToggleKey (0x41 = F7) switches back to WASD + mouse look.\n";
-		out << std::format("Enabled = {}\nToggleKey = {:#x}\n\n", b(PointClickEnabled), ToggleKey);
+		out << std::format("Enabled = {}\nToggleKey = {:#x}\n", b(PointClickEnabled), ToggleKey);
+		out << "; ClickMarker = a small ring on the ground where a click is sending you. It fades when you arrive or cancel.\n";
+		out << std::format("ClickMarker = {}\n\n", b(ClickMarker));
 
 		out << "[Cursor]\n";
 		out << "; Cursor speed and size. The cursor can never leave the screen.\n";
@@ -501,6 +507,9 @@ namespace Settings
 		out << "; Loot = dropped items (their label colour), containers and corpses (gold). Called Items before 1.6.\n";
 		out << "; Weapons and shields an NPC is holding are part of that NPC and can't be outlined separately.\n";
 		out << std::format("Loot = {}\n", b(OutlineLoot));
+		out << "; QuestItems = quest items lying in the world always get a label and an outline in QuestItemColor (0xRRGGBB), even with\n";
+		out << "; Loot = 0 and whatever the loot filter says. The distance and height limits still apply.\n";
+		out << std::format("QuestItems = {}\nQuestItemColor = {:#08x}\n", b(OutlineQuestItems), OutlineQuestItemColor);
 		out << "; Thickness = glow size, 1 (a thin line) to 8. Opacity = how strong the glow is. Brightness = how bright\n";
 		out << "; its colours are (lower = darker). Fade = outlines get fainter with distance.\n";
 		out << std::format("Thickness = {}\nOpacity = {}\nBrightness = {}\nFade = {}\n", OutlineThickness, OutlineOpacity, OutlineBrightness, b(OutlineFade));
@@ -510,6 +519,9 @@ namespace Settings
 		out << "; MaxParts = most model parts outlined in one frame (64-1024). An armoured character is many parts, so a crowd\n";
 		out << "; can reach it; past it the furthest characters get no outline. Higher outlines more of a crowd and costs frames.\n";
 		out << std::format("MaxParts = {}\n", OutlineMaxParts);
+		out << "; Partial = 0: a character whose model could only be read in part gets no outline (unless the cursor is on it).\n";
+		out << "; 1 = outline whatever parts were read, even if that is only a helmet or a pair of boots.\n";
+		out << std::format("Partial = {}\n", b(OutlinePartial));
 		out << "; Items, containers and corpses higher than this above your feet get no outline or label (shelves, upper floors).\n";
 		out << std::format("MaxAbove = {}\n", OutlineMaxAbove);
 		out << "; Enemies, NPCs and followers lower than MaxBelow under your feet (or further than [Labels] MaxHeightDiff above\n";

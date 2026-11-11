@@ -19,6 +19,8 @@ namespace Hud
 		using namespace ImGuiMCP;
 
 		bool        g_available = false;
+		float       g_markerAlpha = 0.0f;  // the click destination ring: 1 = shown, fading to 0 once it's off
+		RE::NiPoint3 g_markerAt;
 
 		// Something on screen: its outline (also its click area).
 		struct Shape
@@ -110,17 +112,16 @@ namespace Hud
 			}
 		}
 
-		// A circle on the ground under an actor: 24 points around its feet, projected like the labels.
-		// It is drawn over the picture, so it shows through walls and over the actor's own feet.
-		void DrawGroundCircle(ImDrawList* a_list, const Game::Target& a_target, float a_w, float a_h)
+		// A ring lying on the ground: 24 points around a spot, projected like the labels. It is drawn
+		// over the picture, so it shows through walls and over whatever stands on it.
+		void DrawGroundRing(ImDrawList* a_list, const RE::NiPoint3& a_centre, float a_radius, ImU32 a_color, float a_thickness, float a_w, float a_h)
 		{
 			constexpr int kPoints = 24;
 			ImVec2        points[kPoints];
-			const float   radius = std::clamp(Settings::CircleRadius, 10.0f, 300.0f);
 			bool          onScreen = false;
 			for (int i = 0; i < kPoints; ++i) {
 				const float        angle = static_cast<float>(i) * (2.0f * std::numbers::pi_v<float> / static_cast<float>(kPoints));
-				const RE::NiPoint3 point{ a_target.pos.x + std::cos(angle) * radius, a_target.pos.y + std::sin(angle) * radius, a_target.pos.z + 3.0f };
+				const RE::NiPoint3 point{ a_centre.x + std::cos(angle) * a_radius, a_centre.y + std::sin(angle) * a_radius, a_centre.z + 3.0f };
 				float              u = 0.0f;
 				float              v = 0.0f;
 				if (!Game::WorldToScreen(point, u, v)) {
@@ -132,9 +133,35 @@ namespace Hud
 			if (!onScreen) {
 				return;
 			}
+			ImDrawListManager::AddPolyline(a_list, points, kPoints, a_color, ImDrawFlags_Closed, a_thickness);
+		}
+
+		// A circle on the ground under an actor, in its outline's colour.
+		void DrawGroundCircle(ImDrawList* a_list, const Game::Target& a_target, float a_w, float a_h)
+		{
 			const auto  alpha = static_cast<std::uint32_t>(std::clamp(Settings::OutlineOpacity, 0.05f, 1.0f) * 255.0f);
 			const ImU32 color = (a_target.color & 0x00FFFFFFu) | (alpha << 24);
-			ImDrawListManager::AddPolyline(a_list, points, kPoints, color, ImDrawFlags_Closed, 2.0f);
+			DrawGroundRing(a_list, a_target.pos, std::clamp(Settings::CircleRadius, 10.0f, 300.0f), color, 2.0f, a_w, a_h);
+		}
+
+		// The click destination: two small rings where a click on the ground is sending you. Game says
+		// whether it's on and where; when it goes off (arrived, cancelled) the rings fade out here.
+		void DrawClickMarker(ImDrawList* a_list, float a_delta, float a_w, float a_h)
+		{
+			if (State::markerOn.load()) {
+				g_markerAt = RE::NiPoint3{ State::markerX.load(), State::markerY.load(), State::markerZ.load() };
+				g_markerAlpha = 1.0f;
+			} else if (g_markerAlpha > 0.0f) {
+				g_markerAlpha -= std::clamp(a_delta, 0.0f, 0.1f) / 0.3f;  // gone in about a third of a second
+			}
+			if (g_markerAlpha <= 0.0f) {
+				g_markerAlpha = 0.0f;
+				return;
+			}
+			const auto  alpha = static_cast<std::uint32_t>(g_markerAlpha * 220.0f);
+			const ImU32 color = IM_COL32(255, 230, 160, 0) | (alpha << 24);
+			DrawGroundRing(a_list, g_markerAt, 20.0f, color, 2.0f, a_w, a_h);
+			DrawGroundRing(a_list, g_markerAt, 8.0f, color, 1.5f, a_w, a_h);
 		}
 
 		// Lets the cursor icons draw onto the HUD.
@@ -233,6 +260,7 @@ namespace Hud
 
 			if (!State::gameplay.load() || FrameworkMenuOpen()) {
 				SetHovered({}, Game::Kind::kItem);
+				g_markerAlpha = 0.0f;
 				// In the inventory and other menus, draw our cursor where the game's would be.
 				if (State::menuCursor.load() && !FrameworkMenuOpen()) {
 					if (auto* cursor = RE::MenuCursor::GetSingleton(); cursor) {
@@ -355,9 +383,10 @@ namespace Hud
 				}
 			}
 
-			// 4. Draw: ground circles, labels, then the cursor on top. The outlines themselves are drawn
+			// 4. Draw: the click destination, ground circles, labels, then the cursor on top. The outlines themselves are drawn
 			//    around the real models by the outline renderer; these simple shapes are only the
 			//    fallback if that renderer couldn't start.
+			DrawClickMarker(list, io->DeltaTime, w, h);
 			if (Settings::GroundCircles && targets) {
 				for (const auto& target : *targets) {
 					const bool actor = target.kind == Game::Kind::kEnemy || target.kind == Game::Kind::kNpc || target.kind == Game::Kind::kFollower;

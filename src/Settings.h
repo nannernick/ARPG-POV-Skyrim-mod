@@ -57,7 +57,7 @@ namespace Settings
 	inline std::uint32_t CameraToggleKey = 0x44;      // F10
 	inline std::uint32_t PitchUpKey = 0xC9;           // Page Up (0x49 is Numpad 9)
 	inline std::uint32_t PitchDownKey = 0xD1;         // Page Down (0x51 is Numpad 3)
-	inline std::uint32_t YawStepKey = 0xD2;           // Insert: turn the camera 90 degrees (only with LockYaw)
+	inline std::uint32_t YawStepKey = 0x3C;           // F2: turn the camera 90 degrees (only with LockYaw). Insert (0xD2) before 1.6.1
 	inline std::uint32_t ReloadKey = 0x42;            // F8
 	inline bool          CameraDebugLog = false;
 
@@ -119,6 +119,7 @@ namespace Settings
 	// [PointClick]
 	inline bool          PointClickEnabled = true;    // point-and-click on at game start
 	inline std::uint32_t ToggleKey = 0x41;            // F7: switch between point-and-click and normal WASD + mouse look
+	inline bool          ClickMarker = true;          // a small ring on the ground where a click is sending you
 
 	// [Cursor]
 	inline float         Sensitivity = 1.0f;          // cursor speed
@@ -182,6 +183,8 @@ namespace Settings
 	inline std::uint32_t OutlineFollowerColor = 0x50A0FF;  // 0xRRGGBB
 	inline bool  OutlinePlayer = true;     // you, white
 	inline bool  OutlineLoot = false;      // dropped items (their label's colour), containers and corpses (gold). Off: only when hovered
+	inline bool  OutlineQuestItems = true; // quest items lying in the world: always labelled and outlined (within OutlineItemRadius), Loot switch or not
+	inline std::uint32_t OutlineQuestItemColor = 0x39FF14;  // 0xRRGGBB, bright green (the NPC green is darker)
 	inline int   OutlineThickness = 3;        // glow size: 1 = a thin line; higher widens the line and its glow
 	inline float OutlineOpacity = 0.6f;       // how strong the glow is (1 = solid)
 	inline float OutlineBrightness = 0.7f;    // how bright its colours are (1 = full colour, lower = darker)
@@ -194,6 +197,7 @@ namespace Settings
 	inline float OutlineRadius = 1500.0f;     // how far from you actors get an outline
 	inline float OutlineItemRadius = 700.0f;  // how far from you items get an outline (their labels reach further)
 	inline int   OutlineMaxParts = 256;       // most model parts outlined in one frame (an armoured character is many parts); past it the furthest are left out
+	inline bool  OutlinePartial = false;      // also outline characters whose model could only be read in part (off: all or nothing)
 
 	// [Debug]
 	inline bool CutawayDebugLog = false;

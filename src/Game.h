@@ -35,6 +35,7 @@ namespace Game
 		float                     pad{ 3.0f };           // how far outside those points the outline sits (Skyrim units)
 		std::uint32_t             color{ 0xFFFFFFFF };   // 0xAABBGGRR
 		Kind                      kind{ Kind::kItem };
+		bool                      quest{ false };        // items only: a quest object (its own colour, always marked)
 	};
 
 	// World point -> screen position in 0..1 (x right, y down). False if behind the camera.
@@ -75,6 +76,13 @@ namespace State
 	inline std::atomic<float> aimPitch{ 0.0f };          // radians, positive = down
 	inline std::atomic<bool> labelKeyHeld{ false };
 	inline std::atomic<int>  moveKeysHeld{ 0 };  // WASD keys currently down
+
+	// Where a click is sending the player, for the HUD's destination ring. Written by Game, read by the HUD.
+	// The three coordinates are stored one by one, so the HUD may see a half-updated point for a frame.
+	inline std::atomic<bool>  markerOn{ false };
+	inline std::atomic<float> markerX{ 0.0f };
+	inline std::atomic<float> markerY{ 0.0f };
+	inline std::atomic<float> markerZ{ 0.0f };
 
 	inline std::mutex                                      lock;     // guards the three below
 	inline std::shared_ptr<const std::vector<Game::Target>> targets;  // written by Game every frame, read by the HUD

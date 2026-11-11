@@ -35,9 +35,20 @@ namespace Outline
 		std::atomic<bool> g_hooked{ false };
 		std::atomic<bool> g_failed{ false };
 
+		// A character is outlined whole or not at all. The renderer leaves out any part of a model it
+		// can't read (buffers not made yet, a mesh that fails its checks), and what's left is fragments:
+		// a helmet, a pair of boots. So what was read is weighed against the model (skinned triangles),
+		// and under kFullCoverage the model is read again every kRetryFrames, kMaxTries times, before
+		// that answer is kept.
+		constexpr float         kFullCoverage = 0.9f;
+		constexpr std::uint32_t kRetryFrames = 20;
+		constexpr std::uint8_t  kMaxTries = 15;
+		constexpr std::uint32_t kCountFrames = 15;  // how often a living model's part count is checked
+
 		struct Entry
 		{
 			RE::FormID        formID;
+			bool              hot;     // the cursor is on it
 			bool              sticky;  // was drawn last frame
 			RE::NiPoint3      centre;
 			float             radius;
@@ -133,15 +144,45 @@ namespace Outline
 			return true;
 		}
 
-		std::size_t CountGeometries(RE::NiAVObject* a_root)
+		struct ModelSize
 		{
-			std::size_t count = 0;
-			RE::BSVisit::TraverseScenegraphGeometries(a_root, [&](RE::BSGeometry*) {
-				++count;
+			std::size_t   count{ 0 };    // model parts
+			std::uint64_t skinned{ 0 };  // triangles in its skinned parts, the ones the renderer draws
+		};
+
+		ModelSize MeasureModel(RE::NiAVObject* a_root)
+		{
+			ModelSize size;
+			RE::BSVisit::TraverseScenegraphGeometries(a_root, [&](RE::BSGeometry* a_geometry) {
+				++size.count;
+				const auto& runtime = a_geometry->GetGeometryRuntimeData();
+				// Effect-shader parts (glows, fx) are never drawn by the renderer, so they don't count.
+				if (runtime.shaderProperty && runtime.shaderProperty->GetRTTI() &&
+					std::strcmp(runtime.shaderProperty->GetRTTI()->GetName(), "BSEffectShaderProperty") == 0) {
+					return RE::BSVisit::BSVisitControl::kContinue;
+				}
+				const auto* skin = runtime.skinInstance.get();
+				const auto* partition = skin ? skin->skinPartition.get() : nullptr;
+				if (partition) {
+					const auto parts = std::min<std::size_t>(partition->numPartitions, partition->partitions.size());
+					for (std::size_t i = 0; i < parts; ++i) {
+						size.skinned += partition->partitions[static_cast<std::uint32_t>(i)].triangles;
+					}
+				}
 				return RE::BSVisit::BSVisitControl::kContinue;
 			});
-			return count;
+			return size;
 		}
+
+		// What is known about a target's model since it was last read.
+		struct Parts
+		{
+			std::size_t   count{ 0 };        // model parts at that time
+			float         coverage{ 1.0f };  // share of its skinned triangles the renderer could read
+			std::uint32_t readAt{ 0 };       // frame
+			std::uint8_t  tries{ 0 };        // reads in a row that came back short
+			bool          logged{ false };
+		};
 
 		class Director
 		{
@@ -253,6 +294,7 @@ namespace Outline
 						continue;
 					}
 					entry.formID = target.formID;
+					entry.hot = hot;
 					entry.distance = target.distance;
 					entry.priority = Priority(target, hot);
 					entry.living = Game::IsLiving(target.kind);
@@ -305,8 +347,8 @@ namespace Outline
 				if (_behind.size() > 1024) {
 					_behind.clear();
 				}
-				if (_counts.size() > 1024) {
-					_counts.clear();
+				if (_parts.size() > 1024) {
+					_parts.clear();
 				}
 
 				std::vector<DirectX::XMFLOAT4>           colors;
@@ -314,14 +356,15 @@ namespace Outline
 				colors.reserve(entries.size());
 				geometries.reserve(entries.size());
 
-				// A model's parts, from the cache when it's still good.
+				// A model's parts, from the cache when it's still good. True = the whole model was read.
 				auto fetch = [&](RE::FormID a_formID, bool a_living, std::vector<RenderGeometry>& a_group) {
 					auto*                    form = RE::TESForm::LookupByID(a_formID);
 					const RE::TESObjectREFR* ref = form ? form->AsReference() : nullptr;
 					RE::NiAVObject* const    root = ref ? ref->GetCurrent3D() : nullptr;
 					if (!ref || !root) {
-						return;
+						return true;
 					}
+					auto&      info = _parts[a_formID];
 					const auto cached = cache.lookup(a_formID);
 					if (cached.geometries) {
 						bool stale = cached.root3d != root;
@@ -336,22 +379,47 @@ namespace Outline
 									break;
 								}
 							}
-							if (!stale && (a_frame + a_formID) % 45 == 0) {
-								const auto it = _counts.find(a_formID);
-								stale = it == _counts.end() || it->second != CountGeometries(root);
+							if (!stale && (a_frame + a_formID) % kCountFrames == 0) {
+								stale = info.count != MeasureModel(root).count;
 							}
+						}
+						if (stale) {
+							info.tries = 0;  // a new or changed model: its parts get their time to load again
+						} else if (info.coverage < kFullCoverage && info.tries < kMaxTries && a_frame - info.readAt >= kRetryFrames) {
+							stale = true;  // it came back short last time: read it again
 						}
 						if (stale) {
 							cache.erase(a_formID);
 						} else {
 							a_group = *cached.geometries;
-							return;
+							return info.coverage >= kFullCoverage;
 						}
 					}
 					collect_render_geometries(ref, a_device, a_group);
-					_counts[a_formID] = CountGeometries(root);
+					const auto    size = MeasureModel(root);
+					std::uint64_t read = 0;
+					for (const auto& part : a_group) {
+						if (part.skin) {
+							read += part.triangle_count;
+						}
+					}
+					info.count = size.count;
+					info.coverage = size.skinned > 0 ? static_cast<float>(read) / static_cast<float>(size.skinned) : 1.0f;
+					info.readAt = a_frame;
+					if (info.coverage >= kFullCoverage) {
+						info.tries = 0;
+					} else if (info.tries < kMaxTries && ++info.tries == kMaxTries && !info.logged && _partialLogs < 24) {
+						// Says which model stays short, so the cause can be found in the renderer's own
+						// "skip skinned draw" lines near this one in the log.
+						info.logged = true;
+						++_partialLogs;
+						logs::info("[outline] {:08X} ({}): only {:.0f}% of the model could be read ({} of {} skinned triangles, {} parts); "
+								   "no outline unless hovered or [Outlines] Partial = 1",
+							a_formID, ref->GetName(), info.coverage * 100.0f, read, size.skinned, size.count);
+					}
 					cache.insert(a_formID, root, std::vector<RenderGeometry>(a_group));
 					// The cache owns the position buffers; this frame's copy only borrows them.
+					return info.coverage >= kFullCoverage;
 				};
 
 				// Things further from the camera than the player are behind them on screen.
@@ -369,12 +437,19 @@ namespace Outline
 				std::uint32_t index = 0;
 				std::size_t   total = 0;
 				std::size_t   leftOut = 0;
+				std::size_t   partial = 0;
 				const auto    maxParts = MaxParts();
 				_drawn.clear();
 				for (const auto& entry : entries) {
 					std::vector<RenderGeometry> group;
-					fetch(entry.formID, entry.living, group);
+					const bool                  whole = fetch(entry.formID, entry.living, group);
 					if (group.empty()) {
+						continue;
+					}
+					// All or nothing: fragments of a character are worse than no outline. The one under
+					// the cursor still shows what there is.
+					if (!whole && !entry.hot && !Settings::OutlinePartial) {
+						++partial;
 						continue;
 					}
 					// Out of room for this one. Keep going: a smaller model further down may still fit.
@@ -410,16 +485,17 @@ namespace Outline
 
 				if (playerDepth > 0.0f && std::find(behind.begin(), behind.end(), std::uint8_t{ 1 }) != behind.end()) {
 					std::vector<RenderGeometry> occluder;
-					fetch(player->GetFormID(), true, occluder);
+					fetch(player->GetFormID(), true, occluder);  // whole or not: it only hides what is behind you
 					if (!occluder.empty() && total + occluder.size() <= maxParts * 2) {
 						_mask.set_occluder(std::move(occluder), std::move(behind));
 					}
 				}
 
 				// For tracking down outlines that come and go in crowds: says when the part limit was hit.
-				if (leftOut > 0 && Settings::PointClickDebugLog && a_frame - _lastBudgetLog > 300) {
+				if ((leftOut > 0 || partial > 0) && Settings::PointClickDebugLog && a_frame - _lastBudgetLog > 300) {
 					_lastBudgetLog = a_frame;
-					logs::info("[outline] part limit reached: {} parts drawn for {} targets, {} targets left out", total, geometries.size(), leftOut);
+					logs::info("[outline] {} parts drawn for {} targets; {} left out by the part limit, {} because their model was only read in part",
+						total, geometries.size(), leftOut, partial);
 				}
 
 				if (!geometries.empty()) {
@@ -431,7 +507,8 @@ namespace Outline
 			std::uint32_t                               _lastFrame{ std::numeric_limits<std::uint32_t>::max() };
 			std::unique_ptr<CommonStates>               _states;
 			Mask::MaskOverlay                           _mask;
-			std::unordered_map<RE::FormID, std::size_t> _counts;  // model part count when each target was last collected
+			std::unordered_map<RE::FormID, Parts>       _parts;   // per target: its model when it was last read
+			std::uint32_t                               _partialLogs{ 0 };
 			std::unordered_map<RE::FormID, bool>        _behind;  // per target: currently behind the player
 			std::unordered_set<RE::FormID>              _drawn;   // targets outlined on the last frame
 			std::uint32_t                               _lastBudgetLog{ 0 };

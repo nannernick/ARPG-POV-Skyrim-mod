@@ -399,6 +399,33 @@ namespace Game
 			return Rgb((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
 		}
 
+		std::uint32_t QuestColor()
+		{
+			const auto c = Settings::OutlineQuestItemColor;
+			return Rgb((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+		}
+
+		// Things that go in the inventory (the types the loot filter knows).
+		bool IsCarryType(RE::FormType a_type)
+		{
+			switch (a_type) {
+			case RE::FormType::Weapon:
+			case RE::FormType::Armor:
+			case RE::FormType::Ammo:
+			case RE::FormType::AlchemyItem:
+			case RE::FormType::Ingredient:
+			case RE::FormType::Book:
+			case RE::FormType::Scroll:
+			case RE::FormType::KeyMaster:
+			case RE::FormType::SoulGem:
+			case RE::FormType::Misc:
+			case RE::FormType::Light:
+				return true;
+			default:
+				return false;
+			}
+		}
+
 		bool HasKeyword(RE::TESBoundObject* a_base, std::string_view a_keyword)
 		{
 			const auto* keywords = a_base->As<RE::BGSKeywordForm>();
@@ -750,7 +777,15 @@ namespace Game
 				} else {
 					const float dist = target.distance;
 					// A cap for very crowded rooms (piles of coins, dozens of boxes).
-					if (items.size() >= kMaxItems || dist > Settings::LabelRadius || !ClassifyItem(a_ref, base, target.color)) {
+					if (items.size() >= kMaxItems || dist > Settings::LabelRadius) {
+						return next;
+					}
+					// A quest object skips the loot filter (a dragon claw is clutter to it) and takes its own colour.
+					const bool quest = Settings::OutlineQuestItems && IsCarryType(type) && a_ref->HasQuestObject();
+					if (quest) {
+						target.quest = true;
+						target.color = QuestColor();
+					} else if (!ClassifyItem(a_ref, base, target.color)) {
 						return next;
 					}
 					const char* name = a_ref->GetDisplayFullName();
@@ -763,7 +798,7 @@ namespace Game
 					} else {
 						target.text = name;
 					}
-					if (a_ref->IsCrimeToActivate()) {
+					if (!quest && a_ref->IsCrimeToActivate()) {
 						target.color = Rgb(255, 90, 90);  // taking it is stealing
 					}
 					if (BoxPoints(a_ref, target)) {
@@ -923,7 +958,24 @@ namespace Game
 			State::aiming.store(true);
 		}
 
-		void Tick(RE::PlayerCharacter* a_player, float a_delta)
+		// The destination ring: on while a click on the ground is walking you somewhere and you aren't there yet.
+		// Walking to a thing (an item, a door) shows none: the thing itself is the marker.
+		void PublishMarker(RE::PlayerCharacter* a_player)
+		{
+			bool on = Settings::ClickMarker && State::gameplay.load() && g_moving && !g_pending;
+			if (on) {
+				const auto pos = a_player->GetPosition();
+				on = std::hypot(g_target.x - pos.x, g_target.y - pos.y) > Settings::ArriveRadius;
+			}
+			if (on) {
+				State::markerX.store(g_target.x);
+				State::markerY.store(g_target.y);
+				State::markerZ.store(g_target.z);
+			}
+			State::markerOn.store(on);
+		}
+
+		void TickBody(RE::PlayerCharacter* a_player, float a_delta)
 		{
 			RefreshGameplay();
 			Camera::OnFrame();
@@ -1039,6 +1091,12 @@ namespace Game
 			Drive(a_player, dx / dist, dy / dist);
 		}
 
+		void Tick(RE::PlayerCharacter* a_player, float a_delta)
+		{
+			TickBody(a_player, a_delta);
+			PublishMarker(a_player);
+		}
+
 		struct PlayerUpdate
 		{
 			static void thunk(RE::Actor* a_this, float a_delta)
@@ -1108,7 +1166,9 @@ namespace Game
 		case Kind::kContainer:
 		case Kind::kCorpse:
 			// Below is handled by the scan (LabelMaxBelow), which drops them from the list altogether.
-			return Settings::OutlineLoot && a_target.above <= Settings::OutlineMaxAbove && a_target.distance <= Settings::OutlineItemRadius;
+			// Quest items are marked whether the Loot switch is on or not.
+			return (Settings::OutlineLoot || (a_target.quest && Settings::OutlineQuestItems)) && a_target.above <= Settings::OutlineMaxAbove &&
+			       a_target.distance <= Settings::OutlineItemRadius;
 		default:
 			return false;  // doors, furniture and activators: only while the cursor is on them
 		}
@@ -1209,6 +1269,7 @@ namespace Game
 		g_faceTime = 0.0f;
 		g_scanTimer = 0.0f;
 		State::moveKeysHeld.store(0);
+		State::markerOn.store(false);
 		Camera::ForgetHeading();
 		g_targets.clear();
 		std::scoped_lock guard(State::lock);
