@@ -7,8 +7,9 @@
 - **ARPG camera angle:** a locked top-down camera, with presets from Path of Exile, Diablo and more
 - **Point and click:** click to move, attack, loot, talk and use doors
 - **ARPG style HUD:** life and mana globes
+- **Aim at the cursor:** spells and arrows fly to where your cursor points, with an aim line and a red ring showing where the shot lands
 
-There's also an interior cutaway, outlines, and item labels with a loot filter. Made for Vortex and tested on Skyrim SE **1.7.104**.
+There's also an interior cutaway, outlines (quest items, levers and pull chains included), and item labels with a loot filter. Made for Vortex and tested on Skyrim SE **1.7.104**.
 
 > ### Get the full modpack: [ARPG POV Nexus Collection](https://www.nexusmods.com/games/skyrimspecialedition/collections/5qdega)
 > It's a Diablo-style Skyrim in one click in Vortex: ARPG POV, its requirements, combat, skills, DiabloRim loot and Alternate Start. **[Open the collection](https://www.nexusmods.com/games/skyrimspecialedition/collections/5qdega)**
@@ -51,10 +52,10 @@ If you use [3PCO - 3rd Person Camera Overhaul](https://www.nexusmods.com/skyrims
 |---|---|
 | Camera | Preset, pitch, yaw lock, distance, FOV, offsets, TDM behaviour |
 | Cutaway | On/off, Default or Automatic style, cut height |
-| Controls | Point and click, cursor, click behaviour, hold to attack, auto-attack, aim at the cursor |
+| Controls | Point and click, cursor, click behaviour, hold to attack, auto-attack, aim at the cursor, steer spells and arrows, aim line and ring |
 | Outlines | Who glows, ground circles, glow, distances |
 | Labels and Loot | Labels and the loot filter |
-| HUD | Globes, vanilla bars, size, numbers |
+| HUD | Globes, vanilla bars, size, numbers, hide in menus |
 | Player | Carry weight and speed |
 
 **Camera presets:** Default (pitch 30, distance 1290, FOV 50), Path of Exile 2 (same as Default), Path of Exile, Diablo II, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II, Skyrim ARPG and Custom. Only the Diablo II, Path of Exile and Path of Exile 2 pitches were measured; the rest are estimates.
@@ -185,13 +186,17 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
 | `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` / `Animate` | 1 / 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, numbers, moving liquid |
+| `[Globes] HideInMenus` | 1 | Hide the globes while the inventory, a container, a shop or the magic menu is open |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Player` / `Loot` | 1 / 1 / 0 / 1 / 0 | Outlines on, and per group (hovered things always glow). `Loot` = dropped items, containers and corpses (`Items` before 1.6) |
 | `[Outlines] Followers` / `FollowerColor` | 1 / 0x50A0FF | Followers' own switch and colour (0xRRGGBB) |
+| `[Outlines] QuestActivators` | 1 | Levers, pull chains and quest activators get the quest colour and an outline too (needs `QuestItems`) |
 | `[Outlines] QuestItems` / `QuestItemColor` | 1 / 0x39FF14 | Quest items lying in the world always get a label and an outline in this colour, with `Loot = 0` too and whatever the loot filter says. `ItemRadius` and the height limits still apply |
 | `[Outlines] Circles` / `CircleRadius` | 0 / 45 | Ground circles under enemies, NPCs and followers, and their size |
 | `[Combat] HoldToAttack` / `PowerAttackKey` | 1 / 0x38 | Holding attack keeps swinging; with the key (Left Alt) held it's a power attack |
 | `[Combat] AutoAttack` | 0 | While locked on, one press of attack starts auto-attack and the next stops it |
 | `[Combat] AimAtCursor` | 1 | Spells and bows aim at the cursor or the hovered enemy |
+| `[Combat] AimProjectiles` | 1 | Each spell or arrow you fire is steered toward the aim point as it leaves, so shots stop going sideways |
+| `[Combat] AimTracker` / `AimMarker` | 1 / 1 | A dashed line to the aim point while casting or drawing, and a red ring where the shot goes |
 | `[Labels] MaxBelow` | 60 | Items lower than this under your feet get no label and can't be clicked |
 | `[Outlines] Thickness` / `Opacity` / `Brightness` / `Fade` | 5 / 0.9 / 0.9 / 1 | Glow size (1-8), glow strength, colour brightness (lower = darker), fainter with distance |
 | `[Outlines] Radius` / `ItemRadius` | 1500 / 700 | How far away actors / items are outlined |
@@ -232,11 +237,12 @@ Planned, not in this version:
 - **Interiors can crash** (seen in a cave, and going downstairs with the cutaway on). The Automatic cutaway style is suspected. A Crash Logger SSE log is needed to find it.
 - **Your own outline can flip in front of / behind your character** while moving indoors.
 - **Outlines could show only fragments of a character in a crowd** (a helmet, boots, bracers) in 1.6.0. From 1.6.1 a character is outlined whole or not at all, and its model is read again while it is still loading. Needs testing. If a kind of enemy now never gets an outline, set `[Outlines] Partial = 1` and send `ARPGPOV.log`.
-- **Quest items are found by the game's quest-object flag.** Items a quest doesn't flag (many dragon claws on their pedestals) keep their normal colour.
+- **Quest items are found by the game's quest-object flag.** Items a quest doesn't flag (many dragon claws on their pedestals) keep their normal colour. Levers and chains are recognised by name, so an oddly named one may not glow.
 - **The 90° yaw key is F2 from 1.6.1** (it was Insert). An INI you kept still has `YawStepKey = 0xd2`.
 - **The pitch keys changed code in 1.6** to the real Page Up / Page Down (0xC9 / 0xD1). Before, the INI held 0x49 / 0x51, which are Numpad 9 / Numpad 3. An INI you kept still has the old codes.
 - **Cobwebs and other ceiling-level props** can be missing under the cut.
-- **Spells can still hit the ground** if True Directional Movement steers the projectile.
+- **Spells can still hit the ground** if True Directional Movement steers the projectile. From 2.0 your projectiles are steered after launch; if shots still go wrong, turn `[Combat] AimProjectiles` off and send `ARPGPOV.log`.
+- **An enemy's inventory window can cover part of the grid inventory.** Being looked at.
 - **Path of Exile 2 is the default camera from 1.6.** The cut heights were tuned at the old distance (600) and may need retuning at 1290.
 - **Furniture and activators are clickable from 1.6.** In a room full of chairs a click meant for the floor can land on one; `[Pickup] Activators = 0` switches it off.
 
