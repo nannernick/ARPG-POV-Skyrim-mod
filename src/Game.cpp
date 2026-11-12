@@ -631,6 +631,23 @@ namespace Game
 		constexpr std::size_t kMaxItems = 400;
 
 		// Placeholder items the game hides out of sight (merchant chests and the like).
+		// Levers and pull chains: what opens the way in a dungeon. Known by model or name.
+		bool IsPuzzleActivator(RE::TESBoundObject* a_base, std::string_view a_name)
+		{
+			const auto has = [](std::string a_text, std::string_view a_needle) {
+				std::transform(a_text.begin(), a_text.end(), a_text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+				return a_text.find(a_needle) != std::string::npos;
+			};
+			if (const auto* model = a_base ? a_base->As<RE::TESModel>() : nullptr; model && model->GetModel()) {
+				const std::string path = model->GetModel();
+				if (has(path, "lever") || has(path, "pullchain") || has(path, "pullbar") || has(path, "chainpull")) {
+					return true;
+				}
+			}
+			const std::string name{ a_name };
+			return has(name, "lever") || has(name, "pull chain") || has(name, "chain");
+		}
+
 		bool IsDeveloperName(std::string_view a_name)
 		{
 			std::string lower(a_name);
@@ -774,6 +791,10 @@ namespace Game
 					}
 					target.kind = Kind::kActivator;
 					target.color = kWhite;
+					if (Settings::OutlineQuestItems && Settings::QuestActivators && (a_ref->HasQuestObject() || IsPuzzleActivator(base, name))) {
+						target.quest = true;
+						target.color = QuestColor();
+					}
 				} else {
 					const float dist = target.distance;
 					// A cap for very crowded rooms (piles of coins, dozens of boxes).
@@ -910,6 +931,55 @@ namespace Game
 			}
 		}
 
+		// The last aim point and when it was set (g_clock seconds), so a projectile launched on the
+		// frame the cast or draw ends still knows where it was meant to go.
+		RE::NiPoint3                   g_aimTo;
+		float                          g_aimTime = -100.0f;
+		float                          g_clock = 0.0f;
+		std::unordered_set<RE::FormID> g_steered;
+
+		// Every projectile the player launched in the last moment is turned toward the aim point,
+		// keeping its speed. Fixes spells and arrows leaving along the body or camera instead of the
+		// cursor. Each projectile is steered once, right after launch; after that it flies normally.
+		void SteerProjectiles(RE::PlayerCharacter* a_player)
+		{
+			if (!Settings::AimAtCursor || !Settings::AimProjectiles || g_clock - g_aimTime > 0.6f) {
+				if (!g_steered.empty() && g_clock - g_aimTime > 2.0f) {
+					g_steered.clear();  // projectile ids are reused; forget them once nothing is being aimed
+				}
+				return;
+			}
+			auto* manager = RE::Projectile::Manager::GetSingleton();
+			if (!manager) {
+				return;
+			}
+			RE::BSSpinLockGuard guard(manager->projectileLock);
+			for (auto* list : { &manager->limited, &manager->unlimited }) {
+				for (auto& handle : *list) {
+					const auto projectile = handle.get();
+					if (!projectile) {
+						continue;
+					}
+					auto&      data = projectile->GetProjectileRuntimeData();
+					const auto shooter = data.shooter.get();
+					if (shooter.get() != a_player || data.livingTime > 0.3f || !g_steered.insert(projectile->GetFormID()).second) {
+						continue;
+					}
+					RE::NiPoint3 dir = g_aimTo - projectile->GetPosition();
+					const float  length = dir.Length();
+					const float  speed = data.linearVelocity.Length();
+					if (length < 50.0f || speed < 1.0f) {
+						continue;
+					}
+					dir /= length;
+					data.linearVelocity = dir * speed;
+					data.velocity = dir * speed;
+					projectile->data.angle.x = -std::asin(std::clamp(dir.z, -1.0f, 1.0f));
+					projectile->data.angle.z = std::atan2(dir.x, dir.y);
+				}
+			}
+		}
+
 		// Spells and arrows leave along the player's own pitch, which the camera lock tilts at the
 		// ground. While casting or drawing, work out the pitch to the enemy under the cursor, or to
 		// chest height above the ground under it; the camera hook applies it without moving the view.
@@ -927,6 +997,7 @@ namespace Game
 			}
 			if (!aiming) {
 				State::aiming.store(false);
+				State::aimShown.store(false);
 				return;
 			}
 			const auto   feet = a_player->GetPosition();
@@ -943,7 +1014,14 @@ namespace Game
 					found = true;
 				}
 			}
+			RE::NiPoint3 ground = to;
+			if (found) {
+				if (const auto ref = hovered.get()) {
+					ground = ref->GetPosition();
+				}
+			}
 			if (!found && CursorGround(a_player, to)) {
+				ground = to;
 				to.z += 60.0f;  // chest height, not the floor
 				found = true;
 			}
@@ -952,8 +1030,25 @@ namespace Game
 				const float flat = std::hypot(to.x - from.x, to.y - from.y);
 				if (flat > 60.0f) {
 					pitch = std::clamp(std::atan2(from.z - to.z, flat), -1.0f, 1.0f);
+					// Face the aim point so the cast or draw animation points where the shot goes.
+					// TDM's lock already faces its target, so it keeps the last word there.
+					if (!Camera::IsTargetLocked()) {
+						a_player->data.angle.z = std::atan2(to.x - from.x, to.y - from.y);
+					}
 				}
+				g_aimTo = to;
+				g_aimTime = g_clock;
+				State::aimFromX.store(from.x);
+				State::aimFromY.store(from.y);
+				State::aimFromZ.store(from.z);
+				State::aimToX.store(to.x);
+				State::aimToY.store(to.y);
+				State::aimToZ.store(to.z);
+				State::aimGroundX.store(ground.x);
+				State::aimGroundY.store(ground.y);
+				State::aimGroundZ.store(ground.z);
 			}
+			State::aimShown.store(found);
 			State::aimPitch.store(pitch);
 			State::aiming.store(true);
 		}
@@ -979,7 +1074,9 @@ namespace Game
 		{
 			RefreshGameplay();
 			Camera::OnFrame();
+			g_clock += std::clamp(a_delta, 0.0f, 0.25f);
 			UpdateAim(a_player);
+			SteerProjectiles(a_player);
 			if (State::gameplay.load()) {
 				AutoAttack(a_player, a_delta);
 			} else {
@@ -1169,6 +1266,10 @@ namespace Game
 			// Quest items are marked whether the Loot switch is on or not.
 			return (Settings::OutlineLoot || (a_target.quest && Settings::OutlineQuestItems)) && a_target.above <= Settings::OutlineMaxAbove &&
 			       a_target.distance <= Settings::OutlineItemRadius;
+		case Kind::kActivator:
+			// Levers and pull chains (QuestActivators): marked like a quest item.
+			return a_target.quest && Settings::OutlineQuestItems && a_target.above <= Settings::OutlineMaxAbove &&
+			       a_target.distance <= Settings::OutlineItemRadius;
 		default:
 			return false;  // doors, furniture and activators: only while the cursor is on them
 		}
@@ -1251,6 +1352,11 @@ namespace Game
 			     !Hud::FrameworkMenuOpen();
 		}
 		State::gameplay.store(on);
+		if (auto* ui = RE::UI::GetSingleton()) {
+			State::inventoryOpen.store(ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME) ||
+									   ui->IsMenuOpen(RE::BarterMenu::MENU_NAME) || ui->IsMenuOpen(RE::GiftMenu::MENU_NAME) ||
+									   ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen("GridInventoryMenu"));
+		}
 		SyncMenuCursor();
 		Globes::Update();
 	}

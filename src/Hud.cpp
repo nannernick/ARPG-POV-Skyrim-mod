@@ -144,6 +144,46 @@ namespace Hud
 			DrawGroundRing(a_list, a_target.pos, std::clamp(Settings::CircleRadius, 10.0f, 300.0f), color, 2.0f, a_w, a_h);
 		}
 
+		// While casting or drawing: a dashed line from the hands to the aim point, and a red ring on
+		// the ground under it that fades out after the shot leaves.
+		void DrawAim(ImDrawList* a_list, float a_delta, float a_w, float a_h)
+		{
+			static float        s_alpha = 0.0f;
+			static RE::NiPoint3 s_ground;
+			const bool          shown = State::aimShown.load();
+			if (shown) {
+				s_ground = RE::NiPoint3{ State::aimGroundX.load(), State::aimGroundY.load(), State::aimGroundZ.load() };
+				s_alpha = 1.0f;
+			} else if (s_alpha > 0.0f) {
+				s_alpha -= std::clamp(a_delta, 0.0f, 0.1f) / 0.4f;
+			}
+			if (s_alpha <= 0.0f) {
+				s_alpha = 0.0f;
+				return;
+			}
+			const auto  alpha = static_cast<std::uint32_t>(s_alpha * 230.0f);
+			const ImU32 red = IM_COL32(235, 50, 40, alpha);
+			if (Settings::AimMarker) {
+				DrawGroundRing(a_list, s_ground, 26.0f, red, 2.5f, a_w, a_h);
+				DrawGroundRing(a_list, s_ground, 9.0f, red, 2.0f, a_w, a_h);
+			}
+			if (Settings::AimTracker && shown) {
+				const RE::NiPoint3 from{ State::aimFromX.load(), State::aimFromY.load(), State::aimFromZ.load() };
+				const RE::NiPoint3 to{ State::aimToX.load(), State::aimToY.load(), State::aimToZ.load() };
+				constexpr int      kDashes = 24;
+				for (int i = 0; i < kDashes; i += 2) {
+					const float  t0 = static_cast<float>(i) / kDashes;
+					const float  t1 = static_cast<float>(i + 1) / kDashes;
+					RE::NiPoint3 a = from + (to - from) * t0;
+					RE::NiPoint3 b = from + (to - from) * t1;
+					float        ax, ay, bx, by;
+					if (Game::WorldToScreen(a, ax, ay) && Game::WorldToScreen(b, bx, by)) {
+						ImDrawListManager::AddLine(a_list, ImVec2{ ax * a_w, ay * a_h }, ImVec2{ bx * a_w, by * a_h }, IM_COL32(255, 120, 90, alpha), 2.0f);
+					}
+				}
+			}
+		}
+
 		// The click destination: two small rings where a click on the ground is sending you. Game says
 		// whether it's on and where; when it goes off (arrived, cancelled) the rings fade out here.
 		void DrawClickMarker(ImDrawList* a_list, float a_delta, float a_w, float a_h)
@@ -387,6 +427,7 @@ namespace Hud
 			//    around the real models by the outline renderer; these simple shapes are only the
 			//    fallback if that renderer couldn't start.
 			DrawClickMarker(list, io->DeltaTime, w, h);
+			DrawAim(list, io->DeltaTime, w, h);
 			if (Settings::GroundCircles && targets) {
 				for (const auto& target : *targets) {
 					const bool actor = target.kind == Game::Kind::kEnemy || target.kind == Game::Kind::kNpc || target.kind == Game::Kind::kFollower;

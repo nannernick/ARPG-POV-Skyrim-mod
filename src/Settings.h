@@ -166,6 +166,11 @@ namespace Settings
 	inline bool          HoldToAttack = true;      // holding the attack button swings again and again (melee)
 	inline std::uint32_t PowerAttackKey = 0x38;    // held with the attack button: a power attack, as in the base game (0x38 = Left Alt)
 	inline bool          AutoAttack = false;       // while locked on (TDM), one press starts attacking by itself; press again to stop
+	inline bool          AimProjectiles = true;    // steer your spells and arrows at the aim point the moment they leave your hands
+	inline bool          AimTracker = true;        // a dashed line from you to the aim point while casting or drawing
+	inline bool          AimMarker = true;         // a red ring where the shot is going, fading out after release
+	inline bool          QuestActivators = true;   // levers, pull chains and quest activators get the quest colour and an outline
+	inline bool          HideGlobesInMenus = true; // the life/mana globes hide while the inventory, a container or a shop is open
 	inline bool          AimAtCursor = true;       // spells and bows aim at the cursor (or the hovered enemy), not along the tilted camera
 
 	// [Globes]

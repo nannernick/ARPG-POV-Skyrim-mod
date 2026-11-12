@@ -230,6 +230,12 @@ namespace Menu
 			Hint("While True Directional Movement's target lock is on, one press of attack keeps attacking until you press it again. Melee only.");
 			Checkbox("Spells and bows aim at the cursor", &Settings::AimAtCursor);
 			Hint("Off: they fire along the camera's tilt, which is into the ground.");
+			Checkbox("Steer spells and arrows to the aim point", &Settings::AimProjectiles);
+			Hint("Turns each of your projectiles toward the cursor (or the enemy under it) as it is launched.");
+			Checkbox("Aim line while casting or drawing", &Settings::AimTracker);
+			Checkbox("Red ring where the shot goes", &Settings::AimMarker);
+			Checkbox("Levers and pull chains in the quest colour", &Settings::QuestActivators);
+			Checkbox("Hide the globes in the inventory and shops", &Settings::HideGlobesInMenus);
 
 			TextDisabled("Buttons and keys are set in the INI.");
 			Footer();

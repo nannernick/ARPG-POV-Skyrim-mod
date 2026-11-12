@@ -74,6 +74,12 @@ namespace State
 	inline std::atomic<bool> powerAttackHeld{ false };   // PowerAttackKey is down: holding attack is a power attack, as in the base game
 	inline std::atomic<bool>  aiming{ false };           // casting or drawing a bow: the player's aim follows aimPitch, not the camera tilt
 	inline std::atomic<float> aimPitch{ 0.0f };          // radians, positive = down
+	// The aim point while casting or drawing, for the HUD's aim line and red ring.
+	inline std::atomic<bool>  aimShown{ false };
+	inline std::atomic<float> aimFromX{ 0.0f }, aimFromY{ 0.0f }, aimFromZ{ 0.0f };
+	inline std::atomic<float> aimToX{ 0.0f }, aimToY{ 0.0f }, aimToZ{ 0.0f };      // where the shot goes
+	inline std::atomic<float> aimGroundX{ 0.0f }, aimGroundY{ 0.0f }, aimGroundZ{ 0.0f };  // under it, for the ring
+	inline std::atomic<bool>  inventoryOpen{ false };    // inventory, container, shop, gift or magic menu (Grid Inventory too)
 	inline std::atomic<bool> labelKeyHeld{ false };
 	inline std::atomic<int>  moveKeysHeld{ 0 };  // WASD keys currently down
 

@@ -1,4 +1,5 @@
 #include "Globes.h"
+#include "Game.h"
 #include "Hud.h"
 #include "Settings.h"
 
@@ -290,6 +291,9 @@ namespace Globes
 	void Draw(ImDrawList* a_list, ImFont* a_font, float a_width, float a_height, float a_delta)
 	{
 		if (!g_visible.load() || !a_list || !a_font) {
+			return;
+		}
+		if (Settings::HideGlobesInMenus && State::inventoryOpen.load()) {
 			return;
 		}
 		const float scale = a_height / 1080.0f * std::clamp(Settings::GlobeSize, 0.5f, 2.0f);

@@ -304,6 +304,11 @@ namespace Settings
 		PowerAttackKey = GetCode(ini, "Combat.PowerAttackKey", PowerAttackKey);
 		AutoAttack = GetBool(ini, "Combat.AutoAttack", AutoAttack);
 		AimAtCursor = GetBool(ini, "Combat.AimAtCursor", AimAtCursor);
+		AimProjectiles = GetBool(ini, "Combat.AimProjectiles", AimProjectiles);
+		AimTracker = GetBool(ini, "Combat.AimTracker", AimTracker);
+		AimMarker = GetBool(ini, "Combat.AimMarker", AimMarker);
+		QuestActivators = GetBool(ini, "Outlines.QuestActivators", QuestActivators);
+		HideGlobesInMenus = GetBool(ini, "Globes.HideInMenus", HideGlobesInMenus);
 		Globes = GetBool(ini, "Globes.Enabled", Globes);
 		HideVanillaBars = GetBool(ini, "Globes.HideVanillaBars", HideVanillaBars);
 		GlobeSize = GetFloat(ini, "Globes.Size", GlobeSize, 0.5f, 2.0f);
@@ -491,12 +496,17 @@ namespace Settings
 		out << "; AutoAttack = while locked on (True Directional Movement), one press of attack keeps attacking until you press again.\n";
 		out << std::format("AutoAttack = {}\n", b(AutoAttack));
 		out << "; AimAtCursor = spells and bows aim at the cursor (or the enemy under it) and not along the tilted camera.\n";
-		out << std::format("AimAtCursor = {}\n\n", b(AimAtCursor));
+		out << std::format("AimAtCursor = {}\n", b(AimAtCursor));
+		out << "; AimProjectiles = your spells and arrows are steered at the aim point as they leave (fixes shots going sideways).\n";
+		out << "; AimTracker = a dashed line to the aim point while casting or drawing. AimMarker = a red ring where the shot goes.\n";
+		out << std::format("AimProjectiles = {}\nAimTracker = {}\nAimMarker = {}\n\n", b(AimProjectiles), b(AimTracker), b(AimMarker));
 
 		out << "[Globes]\n";
 		out << "; Life and mana globes (Path of Exile style), stamina as a bar on the life globe. HideVanillaBars hides the game's bars.\n";
-		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\nAnimate = {}\n\n", b(Globes), b(HideVanillaBars), GlobeSize,
+		out << std::format("Enabled = {}\nHideVanillaBars = {}\nSize = {}\nNumbers = {}\nAnimate = {}\n", b(Globes), b(HideVanillaBars), GlobeSize,
 			b(GlobeNumbers), b(GlobeAnimate));
+		out << "; HideInMenus = the globes hide while the inventory, a container, a shop or the magic menu is open.\n";
+		out << std::format("HideInMenus = {}\n\n", b(HideGlobesInMenus));
 
 		out << "[Outlines]\n";
 		out << "; True outlines around the model: red = enemies, green = NPCs, FollowerColor = followers, white = you.\n";
@@ -510,6 +520,8 @@ namespace Settings
 		out << "; QuestItems = quest items lying in the world always get a label and an outline in QuestItemColor (0xRRGGBB), even with\n";
 		out << "; Loot = 0 and whatever the loot filter says. The distance and height limits still apply.\n";
 		out << std::format("QuestItems = {}\nQuestItemColor = {:#08x}\n", b(OutlineQuestItems), OutlineQuestItemColor);
+		out << "; QuestActivators = levers, pull chains and quest activators get the quest colour and an outline (needs QuestItems).\n";
+		out << std::format("QuestActivators = {}\n", b(QuestActivators));
 		out << "; Thickness = glow size, 1 (a thin line) to 8. Opacity = how strong the glow is. Brightness = how bright\n";
 		out << "; its colours are (lower = darker). Fade = outlines get fainter with distance.\n";
 		out << std::format("Thickness = {}\nOpacity = {}\nBrightness = {}\nFade = {}\n", OutlineThickness, OutlineOpacity, OutlineBrightness, b(OutlineFade));
