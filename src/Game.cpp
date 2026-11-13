@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "Globes.h"
 #include "Hud.h"
+#include "Input.h"
 #include "LootApi.h"
 #include "Settings.h"
 
@@ -192,6 +193,236 @@ namespace Game
 			}
 			const auto map = BuildGroundMap(a_player->GetPosition());
 			return GroundAt(map, cx / w, cy / h, Settings::MaxDistance, a_out);
+		}
+
+		// -----------------------------------------------------------------------
+		// Cursor -> the surface under it (2.1.1)
+		// -----------------------------------------------------------------------
+		// CursorGround puts a click on the flat plane at the player's feet. On anything higher than the feet
+		// (stairs, a rock, a ledge, a slope up) the cursor's line of sight passes that surface and meets the
+		// plane further on, so the walk and the ring went past the spot under the cursor, by more the higher
+		// the surface (up to ~225 px at 2560 wide). Here the click is the first real surface on the cursor's
+		// line of sight instead.
+		//
+		// The line of sight is found without a camera matrix: the plane at the feet and a second plane kRayTop
+		// above them are both mapped from the screen exactly as CursorGround maps one, and the two points under
+		// the cursor lie on the cursor's ray. The ray is cast from the upper point, so the roofs the cutaway hides
+		// (their collision is still there) are above where it starts and are never hit.
+		constexpr float kRayTop = 200.0f;     // ray start above the feet: higher than any step a click can climb
+		constexpr float kRayBelow = 800.0f;   // how far below the feet a click can land (a lower floor, a pit)
+		constexpr float kWalkableNz = 0.5f;   // a surface tilted less than 60 degrees is somewhere to stand
+		constexpr float kWallBack = 40.0f;    // a wall's floor is looked for this far back toward the camera
+		bool            g_clickOnSurface = false;  // the last CursorSurface found a real surface (not the plane fallback)
+
+		// Screen position (0..1) -> point on the map's plane. False at or above the horizon.
+		bool PlaneHit(const GroundMap& a_map, float a_u, float a_v, RE::NiPoint3& a_out)
+		{
+			if (!a_map.valid) {
+				return false;
+			}
+			const double du = a_u - a_map.u0;
+			const double dv = a_v - a_map.v0;
+			const double X = a_map.h[0] * du + a_map.h[1] * dv + a_map.h[2];
+			const double Y = a_map.h[3] * du + a_map.h[4] * dv + a_map.h[5];
+			const double w = a_map.h[6] * du + a_map.h[7] * dv + 1.0;
+			if (w <= 1e-4) {
+				return false;
+			}
+			a_out = a_map.origin;
+			a_out.x += static_cast<float>(X / w);
+			a_out.y += static_cast<float>(Y / w);
+			return true;
+		}
+
+		const char* LayerName(RE::COL_LAYER a_layer)
+		{
+			switch (a_layer) {
+			case RE::COL_LAYER::kStatic:         return "static";
+			case RE::COL_LAYER::kAnimStatic:     return "animstatic";
+			case RE::COL_LAYER::kTerrain:        return "terrain";
+			case RE::COL_LAYER::kGround:         return "ground";
+			case RE::COL_LAYER::kClutter:        return "clutter";
+			case RE::COL_LAYER::kDebrisLarge:    return "debris-large";
+			case RE::COL_LAYER::kInvisibleWall:  return "invisiblewall";
+			case RE::COL_LAYER::kTrigger:        return "trigger";
+			case RE::COL_LAYER::kProps:          return "props";
+			case RE::COL_LAYER::kTrees:          return "trees";
+			case RE::COL_LAYER::kStairHelper:    return "stairhelper";
+			case RE::COL_LAYER::kCollisionBox:   return "collisionbox";
+			case RE::COL_LAYER::kCharController: return "charcontroller";
+			case RE::COL_LAYER::kBiped:          return "biped";
+			case RE::COL_LAYER::kDeadBip:        return "deadbip";
+			case RE::COL_LAYER::kWater:          return "water";
+			default:                             return "other";
+			}
+		}
+
+		struct RayHit
+		{
+			bool          hit{ false };
+			float         fraction{ 1.0f };
+			float         nz{ 0.0f };  // the surface normal's up component: 1 flat floor, 0 wall, below 0 underside
+			RE::COL_LAYER layer{ RE::COL_LAYER::kUnidentified };
+		};
+
+		// One Havok ray, with what the player collides with (so the player is not hit).
+		RayHit CastRay(RE::bhkWorld* a_world, const RE::CFilter& a_filter, const RE::NiPoint3& a_from, const RE::NiPoint3& a_to)
+		{
+			RayHit      out;
+			const float scale = RE::bhkWorld::GetWorldScale();
+			RE::bhkPickData pick;
+			pick.rayInput.from = { a_from.x * scale, a_from.y * scale, a_from.z * scale, 0.0f };
+			pick.rayInput.to = { a_to.x * scale, a_to.y * scale, a_to.z * scale, 0.0f };
+			pick.rayInput.filterInfo = a_filter;
+			RE::BSReadLockGuard lock(a_world->worldLock);
+			if (!a_world->PickObject(pick) || !pick.rayOutput.HasHit() || !pick.rayOutput.rootCollidable) {
+				return out;
+			}
+			alignas(16) float n[4]{};
+			_mm_store_ps(n, pick.rayOutput.normal.quad);
+			out.hit = true;
+			out.fraction = pick.rayOutput.hitFraction;
+			out.nz = n[2];
+			out.layer = pick.rayOutput.rootCollidable->GetCollisionLayer();
+			return out;
+		}
+
+		bool IsCharacterLayer(RE::COL_LAYER a_layer)
+		{
+			return a_layer == RE::COL_LAYER::kCharController || a_layer == RE::COL_LAYER::kBiped || a_layer == RE::COL_LAYER::kDeadBip;
+		}
+
+		// Nothing to stand on, whatever its angle: someone standing there, an invisible wall, a trigger volume.
+		bool LookPast(RE::COL_LAYER a_layer)
+		{
+			return IsCharacterLayer(a_layer) || a_layer == RE::COL_LAYER::kInvisibleWall || a_layer == RE::COL_LAYER::kTrigger;
+		}
+
+		// The cursor's screen position as a pixel, for the debug log.
+		void ToPixel(const RE::NiPoint3& a_point, float& a_x, float& a_y)
+		{
+			a_x = -1.0f;
+			a_y = -1.0f;
+			float u = 0.0f;
+			float v = 0.0f;
+			if (WorldToScreen(a_point, u, v)) {
+				a_x = u * State::screenW.load();
+				a_y = v * State::screenH.load();
+			}
+		}
+
+		// The point a click on the ground goes to: the first surface under the cursor, or the plane at the feet
+		// when nothing usable is hit. a_log: write the ray and every hit to the log ([Debug] ClickRay).
+		bool CursorSurface(RE::PlayerCharacter* a_player, RE::NiPoint3& a_out, bool a_log)
+		{
+			const float w = State::screenW.load();
+			const float h = State::screenH.load();
+			const float cx = State::cursorX.load();
+			const float cy = State::cursorY.load();
+			if (w < 1.0f || h < 1.0f || cx < 0.0f || cy < 0.0f) {
+				return false;
+			}
+			const auto  feet = a_player->GetPosition();
+			const char* rule = "plane at the feet";
+			g_clickOnSurface = false;
+			const auto  fallback = [&](const char* a_why) {
+				const bool ok = CursorGround(a_player, a_out);
+				if (a_log) {
+					float px = 0.0f;
+					float py = 0.0f;
+					ToPixel(a_out, px, py);
+					logs::info("[click] cursor ({:.0f}, {:.0f}) -> {} ({}): ({:.0f}, {:.0f}, {:.0f}) back on screen at ({:.0f}, {:.0f})", cx, cy, rule, a_why,
+						a_out.x, a_out.y, a_out.z, px, py);
+				}
+				return ok;
+			};
+
+			RE::NiPoint3 low;
+			RE::NiPoint3 high;
+			const auto   lowMap = BuildGroundMap(feet);
+			const auto   highMap = BuildGroundMap({ feet.x, feet.y, feet.z + kRayTop });
+			if (!PlaneHit(lowMap, cx / w, cy / h, low) || !PlaneHit(highMap, cx / w, cy / h, high)) {
+				return fallback("no ray: cursor at or above the horizon");
+			}
+			auto* cell = a_player->GetParentCell();
+			auto* world = cell ? cell->GetbhkWorld() : nullptr;
+			if (!world) {
+				return fallback("no physics world");
+			}
+			RE::CFilter filter;
+			a_player->GetCollisionFilterInfo(filter);
+
+			// The ray: from the upper point, down through the lower one, to kRayBelow under the feet.
+			const RE::NiPoint3 dir = low - high;  // dir.z == -kRayTop
+			const float        reach = (kRayTop + kRayBelow) / kRayTop;
+			const RE::NiPoint3 end = high + dir * reach;
+			const float        len = dir.Length();
+			const RE::NiPoint3 unit = len > 1e-3f ? dir / len : RE::NiPoint3{ 0.0f, 0.0f, -1.0f };
+			if (a_log) {
+				logs::info("[click] cursor ({:.0f}, {:.0f}): ray from ({:.0f}, {:.0f}, {:.0f}) dir ({:.3f}, {:.3f}, {:.3f}), feet z {:.0f}", cx, cy, high.x, high.y,
+					high.z, unit.x, unit.y, unit.z, feet.z);
+			}
+
+			RE::NiPoint3 from = high;
+			bool         chosen = false;
+			for (int i = 0; i < 6 && !chosen; ++i) {
+				const auto hit = CastRay(world, filter, from, end);
+				if (!hit.hit) {
+					break;
+				}
+				const RE::NiPoint3 p = from + (end - from) * hit.fraction;
+				if (a_log) {
+					logs::info("[click]   hit {}: ({:.0f}, {:.0f}, {:.0f}) layer {} normal z {:.2f} ({:+.0f} from the feet)", i, p.x, p.y, p.z, LayerName(hit.layer),
+						hit.nz, p.z - feet.z);
+				}
+				// Someone standing there, an invisible wall, or the underside of something (seen from below): look past it.
+				if (LookPast(hit.layer) || hit.nz < -0.2f) {
+					from = p + unit * 2.0f;
+					continue;
+				}
+				if (hit.nz >= kWalkableNz) {
+					a_out = p;
+					rule = "surface under the cursor";
+					chosen = true;
+					break;
+				}
+				// A wall, pillar or rock face: the floor at its foot, on the near side, not a point behind it.
+				const float  flat = std::hypot(unit.x, unit.y);
+				RE::NiPoint3 back = p;
+				if (flat > 1e-3f) {
+					back.x -= unit.x / flat * kWallBack;
+					back.y -= unit.y / flat * kWallBack;
+				}
+				const RE::NiPoint3 dropFrom{ back.x, back.y, p.z + 20.0f };
+				const RE::NiPoint3 dropTo{ back.x, back.y, feet.z - kRayBelow };
+				const auto         floor = CastRay(world, filter, dropFrom, dropTo);
+				if (floor.hit && !LookPast(floor.layer)) {
+					a_out = dropFrom + (dropTo - dropFrom) * floor.fraction;
+					rule = "floor at the foot of a wall";
+					if (a_log) {
+						logs::info("[click]   wall: floor at its foot ({:.0f}, {:.0f}, {:.0f}) layer {}", a_out.x, a_out.y, a_out.z, LayerName(floor.layer));
+					}
+				} else {
+					a_out = { back.x, back.y, p.z };
+					rule = "foot of a wall (no floor found)";
+				}
+				chosen = true;
+			}
+			if (!chosen) {
+				return fallback("nothing usable on the ray");
+			}
+			if (std::hypot(a_out.x - feet.x, a_out.y - feet.y) > Settings::MaxDistance) {
+				return fallback("past Max click distance");
+			}
+			g_clickOnSurface = true;
+			if (a_log) {
+				float px = 0.0f;
+				float py = 0.0f;
+				ToPixel(a_out, px, py);
+				logs::info("[click] chose ({:.0f}, {:.0f}, {:.0f}) by rule: {}; back on screen at ({:.0f}, {:.0f}), cursor ({:.0f}, {:.0f})", a_out.x, a_out.y,
+					a_out.z, rule, px, py, cx, cy);
+			}
+			return true;
 		}
 
 		// The ground direction that points "up the screen" (what a gamepad's stick-up means).
@@ -1118,14 +1349,15 @@ namespace Game
 			State::aiming.store(true);
 		}
 
-		// The floor under a point. A click is worked out on the flat plane at the player's feet (CursorGround), so
-		// its height is the player's, not the floor's where it lands: on a slope, stairs or a lower floor the ring
-		// floated or sank. This drops a ray straight down from a little above that plane and takes the first thing
-		// the player could stand on. The ray starts low (kAbove) so the ceilings the cutaway hides, whose collision
-		// is still there, are not hit. Nothing hit: the plane's height stays.
-		float GroundZ(RE::PlayerCharacter* a_player, float a_x, float a_y, float a_planeZ)
+		// The floor under a point. A click that fell back to the flat plane at the player's feet (CursorGround) has
+		// the player's height, not the floor's where it lands: on a slope, stairs or a lower floor the ring floated or
+		// sank. This drops a ray straight down from a little above that height and takes the first thing the player
+		// could stand on. The ray starts low (a_above) so the ceilings the cutaway hides, whose collision is still
+		// there, are not hit. Nothing hit: the given height stays. A click that found the surface under the cursor
+		// (CursorSurface, 2.1.1) is already on the floor, so it starts just above it and lands on the same point.
+		float GroundZ(RE::PlayerCharacter* a_player, float a_x, float a_y, float a_planeZ, float a_above = 150.0f)
 		{
-			constexpr float kAbove = 150.0f;
+			const float     kAbove = a_above;
 			constexpr float kBelow = 600.0f;
 			auto*           cell = a_player->GetParentCell();
 			auto*           world = cell ? cell->GetbhkWorld() : nullptr;
@@ -1169,7 +1401,7 @@ namespace Game
 				if (std::fabs(g_target.x - s_snappedFor.x) > 2.0f || std::fabs(g_target.y - s_snappedFor.y) > 2.0f ||
 					std::fabs(g_target.z - s_snappedFor.z) > 2.0f) {
 					s_snappedFor = g_target;
-					s_floorZ = GroundZ(a_player, g_target.x, g_target.y, g_target.z);
+					s_floorZ = GroundZ(a_player, g_target.x, g_target.y, g_target.z, g_clickOnSurface ? 20.0f : 150.0f);
 					if (Settings::PointClickDebugLog) {
 						logs::info("[move] ring at ({:.0f}, {:.0f}): click plane z {:.0f}, floor z {:.0f}", g_target.x, g_target.y, g_target.z, s_floorZ);
 					}
@@ -1247,8 +1479,14 @@ namespace Game
 
 			const bool following = g_primaryHeld && g_primary == Primary::kMove && Settings::HoldToMove;
 			if (following) {
+				// The same surface rule as the click; logged at most once a second while held.
+				static float s_followLog = -10.0f;
+				const bool   log = Settings::ClickRayDebugLog && g_clock - s_followLog >= 1.0f;
+				if (log) {
+					s_followLog = g_clock;
+				}
 				RE::NiPoint3 point;
-				if (CursorGround(a_player, point)) {
+				if (CursorSurface(a_player, point, log)) {
 					g_target = point;
 					g_pending = {};
 					g_moving = true;
@@ -1324,6 +1562,40 @@ namespace Game
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		// Load screen up: drop every click-move, swallow and held key, and the marker. Down: the new cell is in, so
+		// the outlines read their models again and the arrival logic starts over (Game::Scan sees a new cell).
+		void OnLoadingScreen(bool a_opening)
+		{
+			if (Settings::LoadStateDebugLog) {
+				logs::info("[load] load screen {}: gameplay {}, moving {}, pending {}, primary {}, stick sent {}, hold attack {}, auto {}",
+					a_opening ? "UP" : "DOWN", State::gameplay.load(), g_moving, static_cast<bool>(g_pending), static_cast<int>(g_primary), g_stickSent,
+					g_holdAttack, g_auto);
+			}
+			if (a_opening) {
+				// The stick is let go through the movement handler only while the old world is still there to take it.
+				auto* player = RE::PlayerCharacter::GetSingleton();
+				if (player && player->Is3DLoaded()) {
+					Halt();
+				} else {
+					g_moving = false;
+					g_pending = {};
+				}
+				g_stickSent = false;
+				g_primary = Primary::kNone;
+				g_primaryHeld = false;
+				g_holdAttack = false;
+				g_auto = false;
+				g_autoSwallow = false;
+				g_faceTime = 0.0f;
+				State::markerOn.store(false);
+				Input::ResetHeld("load screen up");
+			} else {
+				g_lastCell = nullptr;
+				State::cellEpoch.fetch_add(1);
+				Input::ResetHeld("load screen down");
+			}
+		}
+
 		class MenuSink : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 		{
 		public:
@@ -1333,8 +1605,17 @@ namespace Game
 				return &s_sink;
 			}
 
-			RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent*, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+			RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
 			{
+				// ★A LOAD SCREEN IS A LOAD DOOR AS WELL AS A SAVE LOAD (2.1.1). kPreLoadGame only covers the second,
+				// and a door used to carry everything across: a click-move, a held key whose release went to the
+				// load screen, the cursor's old cell. All of it is let go here.
+				if (a_event && a_event->menuName == RE::LoadingMenu::MENU_NAME) {
+					OnLoadingScreen(a_event->opening);
+				} else if (a_event && Settings::LoadStateDebugLog) {
+					logs::info("[load] menu '{}' {} (gameplay {}, moving {}, move keys {})", a_event->menuName.c_str(), a_event->opening ? "opening" : "closing",
+						State::gameplay.load(), g_moving, State::moveKeysHeld.load());
+				}
 				// The per-frame hook stops while the game is paused, so menus update the cursor
 				// state themselves: now, and again next frame once the menu has settled.
 				RefreshGameplay();
@@ -1481,6 +1762,12 @@ namespace Game
 
 	void Reset()
 	{
+		if (Settings::LoadStateDebugLog) {
+			logs::info("[load] save loading: gameplay {}, moving {}, stick sent {}, move keys {}", State::gameplay.load(), g_moving, g_stickSent,
+				State::moveKeysHeld.load());
+		}
+		Input::ResetHeld("save loading");
+		g_lastCell = nullptr;
 		g_moving = false;
 		g_pending = {};
 		g_stickSent = false;
@@ -1531,7 +1818,7 @@ namespace Game
 				} else if (onSomething && !onEnemy && Settings::ClickInteract) {
 					Interact(hovered, player);  // pick up, loot, open, enter, talk
 					g_primary = Primary::kSwallow;
-				} else if (CursorGround(player, point)) {
+				} else if (CursorSurface(player, point, Settings::ClickRayDebugLog)) {
 					StartMove(point, {}, player);
 					g_primary = Primary::kMove;
 				}

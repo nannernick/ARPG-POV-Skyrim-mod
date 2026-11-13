@@ -218,9 +218,33 @@ namespace Input
 				}
 			}
 
+		public:
+			void ForgetKeys()
+			{
+				for (auto& key : _moveKeys) {
+					key = kNoKey;
+				}
+			}
+
+		private:
 			static constexpr std::uint32_t kNoKey = 0xFFFFFFFF;
 			std::uint32_t                  _moveKeys[4]{ kNoKey, kNoKey, kNoKey, kNoKey };
 		};
+	}
+
+	void ResetHeld(const char* a_why)
+	{
+		if (Settings::LoadStateDebugLog) {
+			logs::info("[load] {}: held keys before reset: move {} rotate {} attackInPlace {} powerAttack {} label {}", a_why ? a_why : "?",
+				State::moveKeysHeld.load(), State::rotateHeld.load(), State::attackInPlaceHeld.load(), State::powerAttackHeld.load(),
+				State::labelKeyHeld.load());
+		}
+		Sink::Get()->ForgetKeys();
+		State::moveKeysHeld.store(0);
+		State::rotateHeld.store(false);
+		State::attackInPlaceHeld.store(false);
+		State::powerAttackHeld.store(false);
+		State::labelKeyHeld.store(false);
 	}
 
 	void Install()

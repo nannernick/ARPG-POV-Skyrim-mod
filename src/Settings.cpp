@@ -344,6 +344,8 @@ namespace Settings
 
 		PointClickDebugLog = GetBool(ini, "Debug.PointClick", PointClickDebugLog);
 		InteriorDebugLog = GetBool(ini, "Debug.Interior", InteriorDebugLog);
+		ClickRayDebugLog = GetBool(ini, "Debug.ClickRay", ClickRayDebugLog);
+		LoadStateDebugLog = GetBool(ini, "Debug.LoadState", LoadStateDebugLog);
 
 		logs::info("settings: point and click enabled={} moveButton={} pickupButton={} labelMode={} onAttack={} rarityColor={}", PointClickEnabled, MoveButton, PickupButton, LabelMode,
 			OnAttack, UseRarityColor);
@@ -563,7 +565,10 @@ namespace Settings
 
 		out << "[Debug]\n"
 			<< "; Interior = your outline indoors and at doors, and the interior fog (for dark rooms), in ARPGPOV.log.\n"
-			<< std::format("Cutaway = {}\nPointClick = {}\nInterior = {}\n", b(CutawayDebugLog), b(PointClickDebugLog), b(InteriorDebugLog));
+			<< "; ClickRay = where each click lands: the cursor ray, every hit along it and the point chosen.\n"
+			<< "; LoadState = what is cleared at loads, load doors and menus, and the input state at that moment.\n"
+			<< std::format("Cutaway = {}\nPointClick = {}\nInterior = {}\nClickRay = {}\nLoadState = {}\n", b(CutawayDebugLog), b(PointClickDebugLog),
+				   b(InteriorDebugLog), b(ClickRayDebugLog), b(LoadStateDebugLog));
 
 		out.flush();
 		if (!out.good()) {

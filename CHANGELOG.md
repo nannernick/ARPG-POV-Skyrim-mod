@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.1.1
+
+### Fixed
+- **A click went past the spot under the cursor on stairs, rocks, ledges and slopes.** The click was put on a flat plane at your feet: on anything higher, the cursor's line of sight went past the surface and met that plane further on, so the ring and the walk landed beyond the cursor (up to ~225 px at 2560 wide), and the higher the surface the further off. A click now goes to the first surface under the cursor, found with a physics ray along the cursor's own line of sight. It starts 200 units above your feet, so roofs hidden by the cutaway are not hit. Characters, invisible walls and the undersides of things are looked past. A wall, pillar or rock face sends you to the floor at its foot on your side, not behind it. The ring and the walk use the same point. Nothing usable on the ray, or further than *Max click distance*: the old flat-plane point, as before.
+- **Held keys and a click-move carried across a load door.** Every load screen (a door as well as a save) now stops the click-move, drops the marker, and forgets every key it thought was held (WASD, rotate, attack in place, power attack, labels). A key let go during the load screen used to stay "held", which blocks click-to-move (WASD) or freezes the cursor (rotate).
+- **The interior was set up before the new cell had loaded.** The cutaway, fog and sky now wait for the new cell to be attached and the load screen to be down; the old cell's changes are handed back meanwhile. The outlines read every model again when the load screen goes down.
+
+### New settings
+
+| Setting | Default | What it does |
+|---|---|---|
+| `[Debug] ClickRay` | 0 | Where each click lands, in `ARPGPOV.log`: cursor pixel, the ray, every hit with its collision layer and height, the point chosen and the rule that chose it, and that point back on screen |
+| `[Debug] LoadState` | 0 | What is cleared at save loads, load screens and menus, and the input state at that moment, in `ARPGPOV.log` |
+
+Both are also in F1 → Controls → Debug.
+
+### Known limits
+- With `OnAttack = 1` and True Directional Movement, your character faces the way you walk while attacking. Unchanged.
+- Spell and arrow aiming (the red ring) still uses the flat plane at your feet.
+
 ## 2.1.0
 
 ### Changed defaults

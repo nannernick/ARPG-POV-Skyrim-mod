@@ -248,6 +248,12 @@ namespace Menu
 			Checkbox("Levers and pull chains in the quest colour", &Settings::QuestActivators);
 			Checkbox("Hide the globes in the inventory and shops", &Settings::HideGlobesInMenus);
 
+			SeparatorText("Debug");
+			Checkbox("Click debug log", &Settings::ClickRayDebugLog);
+			Hint("Writes where each click lands to ARPGPOV.log: the cursor ray, every hit along it and the point chosen.");
+			Checkbox("Load and menu debug log", &Settings::LoadStateDebugLog);
+			Hint("Writes what is cleared at loads, load doors and menus, and the input state at that moment, to ARPGPOV.log.");
+
 			TextDisabled("Buttons and keys are set in the INI.");
 			Footer();
 		}

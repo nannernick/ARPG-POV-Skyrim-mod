@@ -659,8 +659,28 @@ namespace Occlusion
 
 			auto* cell = player->GetParentCell();
 			if (cell != g_lastCell) {
+				// ★WAIT FOR THE NEW CELL (2.1.1). The player's cell flips before the cell is attached and before the
+				// load screen is down. Set up then, the room scan in OnCellChanged walked a half-loaded reference
+				// list (rooms missed, their fog never blackened, or blackened late) and everything else read state
+				// the engine was still building. Until the cell is ready the old cell's changes are handed back and
+				// nothing in the new one is touched; the next frame tries again.
+				auto*      ui = RE::UI::GetSingleton();
+				const bool loading = ui && ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME);
+				if (!cell || loading || !cell->IsAttached()) {
+					if (g_lastCell) {
+						RestoreAll();  // forgets g_lastCell, so this runs once per change
+						if (Settings::InteriorDebugLog) {
+							logs::info("[interior] cell changing: waiting for it to load (cell {}, attached {}, load screen {})", cell ? "set" : "none",
+								cell && cell->IsAttached(), loading);
+						}
+					}
+					return;
+				}
 				OnCellChanged(cell);
 				g_lastCell = cell;
+				if (Settings::InteriorDebugLog) {
+					logs::info("[interior] cell ready: '{}' ({:08X}) interior={}", SafeStr(cell->GetFormEditorID()), cell->GetFormID(), cell->IsInteriorCell());
+				}
 			}
 			if (!cell) {
 				return;

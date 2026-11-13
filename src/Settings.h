@@ -213,6 +213,8 @@ namespace Settings
 	inline bool CutawayDebugLog = false;
 	inline bool PointClickDebugLog = false;
 	inline bool InteriorDebugLog = false;  // interior outline, fog and darkness diagnostics
+	inline bool ClickRayDebugLog = false;  // where a click lands: the cursor ray, every hit along it, the point chosen
+	inline bool LoadStateDebugLog = false; // what is cleared at loads, load doors and menus, and the input state then
 
 	
 

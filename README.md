@@ -167,6 +167,8 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `HideSky` | 1 | Hide the sky dome while inside |
 | `[Debug] Cutaway` / `PointClick` | 0 / 0 | Write diagnostics to `ARPGPOV.log` |
 | `[Debug] Interior` | 0 | Your outline indoors and at doors, and the interior fog (dark rooms), in `ARPGPOV.log` |
+| `[Debug] ClickRay` | 0 | Where each click lands: cursor pixel, the ray, every hit with its collision layer and height, the point chosen and why, and that point back on screen |
+| `[Debug] LoadState` | 0 | What is cleared at save loads, load doors (load screens) and menus, and the input state at that moment |
 </details>
 
 <details>
@@ -243,7 +245,9 @@ Planned, not in this version:
 - **An MCM settings page.**
 
 ## Known issues
-- **Interiors can go dark, and your own outline can be missing indoors or after a door** (2.1 adds a fix for the outline after doors and a diagnostic for both). If it still happens, set `[Debug] Interior = 1`, reproduce it, and send `ARPGPOV.log`. For a dark room, also try F1 → Cutaway → untick *Black interior fog* while it is dark (from 2.1 this applies at once).
+- **Interiors can go dark, and your own outline can be missing indoors or after a door** (2.1 adds a fix for the outline after doors and a diagnostic for both; 2.1.1 waits for the new cell to finish loading before setting it up). If it still happens, set `[Debug] Interior = 1` and `[Debug] LoadState = 1`, reproduce it, and send `ARPGPOV.log`. For a dark room, also try F1 → Cutaway → untick *Black interior fog* while it is dark (from 2.1 this applies at once).
+- **Menu keys (inventory, Esc) dead after a load door.** Seen once after leaving Bleak Falls Sanctum. ARPG POV does not block menu keys; 2.1.1 clears its own held keys and click-move at every load screen. If it happens again, set `[Debug] LoadState = 1` here and POErim's debug logs (see its README), reproduce, and send `ARPGPOV.log`, `DiabloInSkyrim.log` and `GridInventory.log`.
+- **Orbs inside a corpse have no name tag.** Labels are for things lying on the ground; a corpse gets its gold outline and its contents show when you loot it. POErim 2.1.1 puts orbs in the corpse by default.
 - **Keep moving while attacking (`OnAttack = 1`) with TDM:** your character faces the way you walk, not the target, because TDM moves the body along its facing. Spells and arrows still fly to the cursor. A melee swing goes the way you walk.
 - **Interiors can crash** (seen in a cave, and going downstairs with the cutaway on). The Automatic cutaway style is suspected. A Crash Logger SSE log is needed to find it.
 - **Your own outline can flip in front of / behind your character** while moving indoors.
