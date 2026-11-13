@@ -281,13 +281,20 @@ namespace Camera
 		if (!camera || !player) {
 			return;
 		}
-		if (Settings::ManageCamera) {
-			camera->GetRuntimeData2().worldFOV = Settings::CameraFov;
-		}
 		// The lock only runs in third person, but it leaves the view tilted down. Entering first
 		// person, level it once; after that the mouse looks around freely.
 		static bool s_first = false;
 		const bool  first = camera->IsInFirstPerson();
+		if (Settings::ManageCamera) {
+			// Third person: held at Fov every frame. First person: FirstPersonFov once on the way in, then
+			// left alone (the console's fov and other mods can change it). FirstPersonFov 0 = held at Fov, as before 2.1.
+			const bool firstOwnFov = first && Settings::FirstPersonFov >= 30.0f;
+			if (!firstOwnFov) {
+				camera->GetRuntimeData2().worldFOV = Settings::CameraFov;
+			} else if (!s_first) {
+				camera->GetRuntimeData2().worldFOV = Settings::FirstPersonFov;
+			}
+		}
 		if (first && !s_first && g_active && Settings::LockPitch) {
 			player->data.angle.x = 0.0f;
 		}

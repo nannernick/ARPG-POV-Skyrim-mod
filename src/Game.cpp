@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "Globes.h"
 #include "Hud.h"
+#include "LootApi.h"
 #include "Settings.h"
 
 namespace Game
@@ -40,6 +41,7 @@ namespace Game
 		constexpr float     kArrivalDoorRange = 350.0f;
 		float               g_stuckTimer = 0.0f;
 		RE::NiPoint3        g_stuckPos;
+		bool                g_wasAttacking = false;  // last frame's IsAttacking, so the start of an attack is seen once
 
 		constexpr std::uint32_t Rgb(std::uint32_t a_r, std::uint32_t a_g, std::uint32_t a_b)
 		{
@@ -310,6 +312,12 @@ namespace Game
 
 		void FaceToward(const RE::NiPoint3& a_point, RE::PlayerCharacter* a_player)
 		{
+			// OnAttack = 1: an attack while walking keeps the walk. Turning toward the target would go through
+			// the movement stick and bend the walk, so the walk keeps the stick; bows and spells still aim at
+			// the target (UpdateAim, SteerProjectiles).
+			if (Settings::OnAttack == 1 && g_moving) {
+				return;
+			}
 			const auto  pos = a_player->GetPosition();
 			const float dx = a_point.x - pos.x;
 			const float dy = a_point.y - pos.y;
@@ -692,7 +700,9 @@ namespace Game
 			if (cell != g_lastCell || origin.GetDistance(g_lastPos) > 600.0f) {
 				g_arrived = true;
 				g_arrivalDoor = 0;
+				State::cellEpoch.fetch_add(1);
 			}
+			State::interior.store(interior);
 			g_lastCell = const_cast<RE::TESObjectCELL*>(cell);
 			g_lastPos = origin;
 			float arrivalDistance = kArrivalDoorRange;
@@ -803,11 +813,20 @@ namespace Game
 					}
 					// A quest object skips the loot filter (a dragon claw is clutter to it) and takes its own colour.
 					const bool quest = Settings::OutlineQuestItems && IsCarryType(type) && a_ref->HasQuestObject();
+					// POErim 2.1.0+ (UseRarityColor): the item's rarity colour in place of the type colour (a normal-rarity
+					// item that carries an enchantment is no longer magic blue), and its orbs are loot whatever the loot
+					// filter says. Without POErim's v2 API this answers false and nothing changes.
+					std::uint32_t rarityColor = 0;
+					bool          currency = false;
+					const bool    rarity = !quest && IsCarryType(type) && LootApi::ColorOfRef(target.formID, rarityColor, currency);
 					if (quest) {
 						target.quest = true;
 						target.color = QuestColor();
-					} else if (!ClassifyItem(a_ref, base, target.color)) {
+					} else if (!ClassifyItem(a_ref, base, target.color) && !currency) {
 						return next;
+					}
+					if (rarity) {
+						target.color = rarityColor;
 					}
 					const char* name = a_ref->GetDisplayFullName();
 					if (!name || !*name || IsDeveloperName(name)) {
@@ -931,6 +950,36 @@ namespace Game
 			}
 		}
 
+		// A swing, a bow being drawn or loosed, or a spell being cast, with any button.
+		bool IsAttacking(RE::PlayerCharacter* a_player)
+		{
+			if (a_player->AsActorState()->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone) {
+				return true;
+			}
+			for (const auto source : { RE::MagicSystem::CastingSource::kLeftHand, RE::MagicSystem::CastingSource::kRightHand }) {
+				if (const auto* caster = a_player->GetMagicCaster(source); caster && caster->state.get() != RE::MagicCaster::State::kNone) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// The frame an attack starts. OnAttack = 0: a click-move in progress (walking to a point, following the held
+		// button, or walking to something to use it) stops there, and a held move button stops following until it
+		// is pressed again. OnAttack = 1: nothing stops.
+		void OnAttackStart()
+		{
+			const bool walking = g_moving || g_primaryHeld;
+			if (Settings::PointClickDebugLog) {
+				logs::info("[move] attack started: OnAttack={} walking={} tdm={}", Settings::OnAttack, walking, UseTdm());
+			}
+			if (Settings::OnAttack != 0 || !walking) {
+				return;
+			}
+			Halt();
+			g_primaryHeld = false;
+		}
+
 		// The last aim point and when it was set (g_clock seconds), so a projectile launched on the
 		// frame the cast or draw ends still knows where it was meant to go.
 		RE::NiPoint3                   g_aimTo;
@@ -1032,8 +1081,24 @@ namespace Game
 					pitch = std::clamp(std::atan2(from.z - to.z, flat), -1.0f, 1.0f);
 					// Face the aim point so the cast or draw animation points where the shot goes.
 					// TDM's lock already faces its target, so it keeps the last word there.
-					if (!Camera::IsTargetLocked()) {
+					// Walking while attacking (OnAttack = 1): the walk owns the heading. Movement goes along the
+					// character's heading (TDM turns the body toward the stick a little each frame, and Mode 2 sets
+					// it outright), so writing the aim here bent the walk to somewhere between the two. The shot
+					// still goes to the aim point: SteerProjectiles and the aim pitch don't need the body turned.
+					const bool walkOwnsHeading = Settings::OnAttack == 1 && g_moving;
+					if (!Camera::IsTargetLocked() && !walkOwnsHeading) {
 						a_player->data.angle.z = std::atan2(to.x - from.x, to.y - from.y);
+					}
+					if (walkOwnsHeading && Settings::PointClickDebugLog) {
+						static float s_logClock = -10.0f;
+						if (g_clock - s_logClock >= 1.0f) {
+							s_logClock = g_clock;
+							const auto  pos = a_player->GetPosition();
+							const float moveHeading = std::atan2(g_target.x - pos.x, g_target.y - pos.y);
+							const float aimHeading = std::atan2(to.x - from.x, to.y - from.y);
+							logs::info("[move] walking while aiming: body {:.0f} deg, walk {:.0f} deg, aim {:.0f} deg (body should match walk)",
+								a_player->data.angle.z * 57.2958f, moveHeading * 57.2958f, aimHeading * 57.2958f);
+						}
 					}
 				}
 				g_aimTo = to;
@@ -1053,19 +1118,65 @@ namespace Game
 			State::aiming.store(true);
 		}
 
+		// The floor under a point. A click is worked out on the flat plane at the player's feet (CursorGround), so
+		// its height is the player's, not the floor's where it lands: on a slope, stairs or a lower floor the ring
+		// floated or sank. This drops a ray straight down from a little above that plane and takes the first thing
+		// the player could stand on. The ray starts low (kAbove) so the ceilings the cutaway hides, whose collision
+		// is still there, are not hit. Nothing hit: the plane's height stays.
+		float GroundZ(RE::PlayerCharacter* a_player, float a_x, float a_y, float a_planeZ)
+		{
+			constexpr float kAbove = 150.0f;
+			constexpr float kBelow = 600.0f;
+			auto*           cell = a_player->GetParentCell();
+			auto*           world = cell ? cell->GetbhkWorld() : nullptr;
+			if (!world) {
+				return a_planeZ;
+			}
+			const float scale = RE::bhkWorld::GetWorldScale();
+			const float top = a_planeZ + kAbove;
+			RE::CFilter filter;
+			a_player->GetCollisionFilterInfo(filter);  // what the player collides with, minus the player itself
+
+			RE::bhkPickData pick;
+			pick.rayInput.from = { a_x * scale, a_y * scale, top * scale, 0.0f };
+			pick.rayInput.to = { a_x * scale, a_y * scale, (a_planeZ - kBelow) * scale, 0.0f };
+			pick.rayInput.filterInfo = filter;
+			RE::BSReadLockGuard lock(world->worldLock);
+			if (!world->PickObject(pick) || !pick.rayOutput.HasHit() || !pick.rayOutput.rootCollidable) {
+				return a_planeZ;
+			}
+			// Another character standing on the spot is not the floor.
+			const auto layer = pick.rayOutput.rootCollidable->GetCollisionLayer();
+			if (layer == RE::COL_LAYER::kCharController || layer == RE::COL_LAYER::kBiped || layer == RE::COL_LAYER::kDeadBip) {
+				return a_planeZ;
+			}
+			return top - (kAbove + kBelow) * pick.rayOutput.hitFraction;
+		}
+
 		// The destination ring: on while a click on the ground is walking you somewhere and you aren't there yet.
 		// Walking to a thing (an item, a door) shows none: the thing itself is the marker.
 		void PublishMarker(RE::PlayerCharacter* a_player)
 		{
+			static RE::NiPoint3 s_snappedFor{ 1e30f, 1e30f, 1e30f };  // the click the cached floor height is for
+			static float        s_floorZ = 0.0f;
 			bool on = Settings::ClickMarker && State::gameplay.load() && g_moving && !g_pending;
 			if (on) {
 				const auto pos = a_player->GetPosition();
 				on = std::hypot(g_target.x - pos.x, g_target.y - pos.y) > Settings::ArriveRadius;
 			}
 			if (on) {
+				// One ray per new destination (holding the button moves it every frame, so that is a ray per frame then).
+				if (std::fabs(g_target.x - s_snappedFor.x) > 2.0f || std::fabs(g_target.y - s_snappedFor.y) > 2.0f ||
+					std::fabs(g_target.z - s_snappedFor.z) > 2.0f) {
+					s_snappedFor = g_target;
+					s_floorZ = GroundZ(a_player, g_target.x, g_target.y, g_target.z);
+					if (Settings::PointClickDebugLog) {
+						logs::info("[move] ring at ({:.0f}, {:.0f}): click plane z {:.0f}, floor z {:.0f}", g_target.x, g_target.y, g_target.z, s_floorZ);
+					}
+				}
 				State::markerX.store(g_target.x);
 				State::markerY.store(g_target.y);
-				State::markerZ.store(g_target.z);
+				State::markerZ.store(s_floorZ);
 			}
 			State::markerOn.store(on);
 		}
@@ -1077,6 +1188,13 @@ namespace Game
 			g_clock += std::clamp(a_delta, 0.0f, 0.25f);
 			UpdateAim(a_player);
 			SteerProjectiles(a_player);
+			{
+				const bool attacking = State::gameplay.load() && IsAttacking(a_player);
+				if (attacking && !g_wasAttacking) {
+					OnAttackStart();
+				}
+				g_wasAttacking = attacking;
+			}
 			if (State::gameplay.load()) {
 				AutoAttack(a_player, a_delta);
 			} else {
@@ -1374,6 +1492,7 @@ namespace Game
 		g_primaryHeld = false;
 		g_faceTime = 0.0f;
 		g_scanTimer = 0.0f;
+		g_wasAttacking = false;
 		State::moveKeysHeld.store(0);
 		State::markerOn.store(false);
 		Camera::ForgetHeading();

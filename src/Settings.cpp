@@ -175,6 +175,7 @@ namespace Settings
 		ManageCamera = GetBool(ini, "Camera.Manage", ManageCamera);
 		CameraDistance = GetFloat(ini, "Camera.Distance", CameraDistance, 100.0f, 3000.0f);
 		CameraFov = GetFloat(ini, "Camera.Fov", CameraFov, 30.0f, 120.0f);
+		FirstPersonFov = GetFloat(ini, "Camera.FirstPersonFov", FirstPersonFov, 0.0f, 150.0f);
 		CameraOffsetX = GetFloat(ini, "Camera.OffsetX", CameraOffsetX, -300.0f, 300.0f);
 		CameraOffsetZ = GetFloat(ini, "Camera.OffsetZ", CameraOffsetZ, -300.0f, 300.0f);
 		WheelZoom = GetBool(ini, "Camera.WheelZoom", WheelZoom);
@@ -279,6 +280,7 @@ namespace Settings
 		ClickInteract = GetBool(ini, "Move.ClickInteract", ClickInteract);
 		AttackInPlaceKey = GetCode(ini, "Move.AttackInPlaceKey", AttackInPlaceKey);
 		FaceTime = GetFloat(ini, "Move.FaceTime", FaceTime, 0.0f, 1.0f);
+		OnAttack = GetInt(ini, "Move.OnAttack", OnAttack, 0, 1);
 
 		PickupButton = GetCode(ini, "Pickup.Button", PickupButton);
 		PickupRange = GetFloat(ini, "Pickup.Range", PickupRange, 50.0f, 1000.0f);
@@ -299,6 +301,8 @@ namespace Settings
 		ShowIngredients = GetBool(ini, "Labels.ShowIngredients", ShowIngredients);
 		ShowBooks = GetBool(ini, "Labels.ShowBooks", ShowBooks);
 		ShowClutter = GetBool(ini, "Labels.ShowClutter", ShowClutter);
+		UseRarityColor = GetBool(ini, "Labels.UseRarityColor", UseRarityColor);
+		CurrencyColor = GetCode(ini, "Labels.CurrencyColor", CurrencyColor) & 0xFFFFFF;
 
 		HoldToAttack = GetBool(ini, "Combat.HoldToAttack", HoldToAttack);
 		PowerAttackKey = GetCode(ini, "Combat.PowerAttackKey", PowerAttackKey);
@@ -339,8 +343,10 @@ namespace Settings
 		OutlinePartial = GetBool(ini, "Outlines.Partial", OutlinePartial);
 
 		PointClickDebugLog = GetBool(ini, "Debug.PointClick", PointClickDebugLog);
+		InteriorDebugLog = GetBool(ini, "Debug.Interior", InteriorDebugLog);
 
-		logs::info("settings: point and click enabled={} moveButton={} pickupButton={} labelMode={}", PointClickEnabled, MoveButton, PickupButton, LabelMode);
+		logs::info("settings: point and click enabled={} moveButton={} pickupButton={} labelMode={} onAttack={} rarityColor={}", PointClickEnabled, MoveButton, PickupButton, LabelMode,
+			OnAttack, UseRarityColor);
 	}
 
 	bool Save()
@@ -378,6 +384,9 @@ namespace Settings
 			<< "; and WheelZoom (0 = the mouse wheel does not zoom; use the change-view key for first person).\n"
 			<< std::format("Manage = {}\nDistance = {}\nFov = {}\nOffsetX = {}\nOffsetZ = {}\nWheelZoom = {}\n", b(ManageCamera), CameraDistance, CameraFov,
 				   CameraOffsetX, CameraOffsetZ, b(WheelZoom))
+			<< "; FirstPersonFov = field of view set once on entering first person (needs Manage = 1). After that it is left alone,\n"
+			<< "; so the console's fov or another mod can change it. 0 = first person is held at Fov too (as before 2.1).\n"
+			<< std::format("FirstPersonFov = {}\n", FirstPersonFov)
 			<< "; Keys: 0x44 = F10, 0xc9 = Page Up, 0xd1 = Page Down, 0x42 = F8. 0 = no key. (0x49 / 0x51 are Numpad 9 / 3.)\n"
 			<< std::format("ToggleKey = {:#x}\nPitchUpKey = {:#x}\nPitchDownKey = {:#x}\nPitchStep = {}\nReloadKey = {:#x}\n",
 				   CameraToggleKey, PitchUpKey, PitchDownKey, PitchStep, ReloadKey)
@@ -463,8 +472,11 @@ namespace Settings
 		out << std::format("Mode = {}\n", MoveMode);
 		out << "; Clicking a hostile attacks it. AttackInPlaceKey + click attacks toward the cursor (0x2A = Left Shift).\n";
 		out << "; ClickInteract = clicking an item, container, corpse, door or NPC walks over and uses it.\n";
-		out << std::format("ClickEnemies = {}\nClickInteract = {}\nAttackInPlaceKey = {:#x}\nFaceTime = {}\n\n", b(ClickEnemies), b(ClickInteract),
+		out << std::format("ClickEnemies = {}\nClickInteract = {}\nAttackInPlaceKey = {:#x}\nFaceTime = {}\n", b(ClickEnemies), b(ClickInteract),
 			AttackInPlaceKey, FaceTime);
+		out << "; OnAttack = what a click-move does when an attack starts. 0 = stop moving. 1 = keep moving along the click, while\n";
+		out << "; spells and arrows still go to the cursor (with True Directional Movement the body faces the way you walk).\n";
+		out << std::format("OnAttack = {}\n\n", OnAttack);
 
 		out << "[Pickup]\n";
 		out << "; Extra button that uses what's under the cursor (2 = middle mouse / mouse 3). Out of Range, you walk there first.\n";
@@ -486,8 +498,12 @@ namespace Settings
 		out << std::format("StackCount = {}\n", StackCount);
 		out << "; Loot filter. Always shown: weapons, armor, ammo, potions, scrolls, spell tomes, keys, soul gems, gold, lockpicks,\n";
 		out << "; gems, ore and ingots. These add the rest: food, ingredients, other books, and clutter (kettles, buckets...).\n";
-		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
+		out << std::format("ShowFood = {}\nShowIngredients = {}\nShowBooks = {}\nShowClutter = {}\n", b(ShowFood), b(ShowIngredients), b(ShowBooks),
 			b(ShowClutter));
+		out << "; POErim 2.1.0 or later only (nothing changes without it). UseRarityColor = labels and outlines in the item's rarity colour\n";
+		out << "; from POErim (normal, magic, rare, currency, corrupted), and orbs always show as loot. CurrencyColor = 0xRRGGBB for\n";
+		out << "; orbs, 0 = POErim's own currency colour.\n";
+		out << std::format("UseRarityColor = {}\nCurrencyColor = {:#08x}\n\n", b(UseRarityColor), CurrencyColor);
 
 		out << "[Combat]\n";
 		out << "; HoldToAttack = holding your attack button swings again and again (melee). Hold PowerAttackKey with it for a\n";
@@ -546,7 +562,8 @@ namespace Settings
 		out << std::format("BehindPlayer = {}\n\n", b(OutlineBehindPlayer));
 
 		out << "[Debug]\n"
-			<< std::format("Cutaway = {}\nPointClick = {}\n", b(CutawayDebugLog), b(PointClickDebugLog));
+			<< "; Interior = your outline indoors and at doors, and the interior fog (for dark rooms), in ARPGPOV.log.\n"
+			<< std::format("Cutaway = {}\nPointClick = {}\nInterior = {}\n", b(CutawayDebugLog), b(PointClickDebugLog), b(InteriorDebugLog));
 
 		out.flush();
 		if (!out.good()) {

@@ -307,7 +307,16 @@ namespace Occlusion
 		// cell's data again if it changed, and the fog the renderer is using right now.
 		void KeepFogBlack(RE::TESObjectCELL* a_cell)
 		{
-			if (!Settings::BlackFog || !a_cell || !a_cell->IsInteriorCell()) {
+			if (!Settings::BlackFog) {
+				// Switched off in the menu while inside: hand the colours back now. Before 2.1 they stayed black
+				// until the next cell, so the switch could not be used to test whether the fog darkens a room.
+				if (!g_fogBackups.empty() || !g_weatherBackups.empty() || g_clearSaved) {
+					RestoreFog();
+					logs::info("[fog] BlackFog off: the interior's own fog colours are back");
+				}
+				return;
+			}
+			if (!a_cell || !a_cell->IsInteriorCell()) {
 				return;
 			}
 			auto* lighting = a_cell->GetLighting();
@@ -425,6 +434,22 @@ namespace Occlusion
 			auto*      lighting = interior ? a_cell->GetLighting() : nullptr;
 			auto*      tmpl = interior ? a_cell->GetRuntimeData().lightingTemplate : nullptr;
 
+			if (Settings::InteriorDebugLog && interior) {
+				// For dark rooms: with BlackFog everything past fogNear fades toward black, up to fogClamp at fogFar. The
+				// camera sits about [Camera] Distance away from you, so a short fogFar can turn the whole view dark.
+				const auto fogLine = [](const char* a_what, const RE::INTERIOR_DATA* a_data) {
+					logs::info("[interior] {} fog near={} far={} distances {:.0f}..{:.0f} power {:.2f} clamp {:.2f}", a_what, ColorHex(a_data->fogColorNear),
+						ColorHex(a_data->fogColorFar), a_data->fogNear, a_data->fogFar, a_data->fogPower, a_data->fogClamp);
+				};
+				logs::info("[interior] entered '{}' ({:08X}): BlackFog={} HideSky={} camera distance {:.0f}", SafeStr(a_cell->GetFormEditorID()),
+					a_cell->GetFormID(), Settings::BlackFog, Settings::HideSky, Settings::CameraDistance);
+				if (lighting) {
+					fogLine("cell", lighting);
+				}
+				if (tmpl) {
+					fogLine("template", &tmpl->data);
+				}
+			}
 			if (Settings::CutawayDebugLog) {
 				logs::info("[cell] '{}' ({:08X}) interior={}", SafeStr(a_cell->GetFormEditorID()), a_cell->GetFormID(), interior);
 				if (lighting) {
@@ -450,6 +475,38 @@ namespace Occlusion
 					return RE::BSContainer::ForEachResult::kContinue;
 				});
 				logs::info("[fog] interior fog set to black ({} block(s))", g_fogBackups.size());
+			}
+		}
+
+		// [Debug] Interior, every 2 seconds indoors: the fog the renderer is using right now, how far the camera is,
+		// and whether the cut and the black fog are on. When a room goes dark, these lines from that moment say
+		// whether the fog reaches the camera (camera distance past fog far, near-black colours) or not.
+		void LogInteriorLight(RE::PlayerCharacter* a_player, RE::TESObjectCELL* a_cell, float a_delta)
+		{
+			static float s_timer = 0.0f;
+			if (!Settings::InteriorDebugLog || !a_cell->IsInteriorCell()) {
+				s_timer = 0.0f;
+				return;
+			}
+			s_timer += a_delta;
+			if (s_timer < 2.0f) {
+				return;
+			}
+			s_timer = 0.0f;
+			auto*       camera = RE::PlayerCamera::GetSingleton();
+			auto*       camNode = camera ? camera->cameraRoot.get() : nullptr;
+			const float camDist = camNode ? camNode->world.translate.GetDistance(a_player->GetPosition()) : -1.0f;
+			auto*       scene = RE::BSShaderManager::State::GetSingleton().shadowSceneNode[0];
+			auto*       fog = scene ? scene->GetRuntimeData().fogProperty.get() : nullptr;
+			if (fog) {
+				logs::info("[interior] live fog {:.0f}..{:.0f} power {:.2f} clamp {:.2f} near rgb({:.2f},{:.2f},{:.2f}) far rgb({:.2f},{:.2f},{:.2f}); "
+						   "camera {:.0f} from you; BlackFog={} backups={} cut={} sky hidden={}",
+					fog->nearDistance, fog->farDistance, fog->power, fog->clamp, fog->nearColor.red, fog->nearColor.green, fog->nearColor.blue,
+					fog->farColor.red, fog->farColor.green, fog->farColor.blue, camDist, Settings::BlackFog, g_fogBackups.size(),
+					Settings::CutawayEnabled && Settings::CutawayMode == 1, g_skyHidden);
+			} else {
+				logs::info("[interior] no live fog property; camera {:.0f} from you; BlackFog={} cut={}", camDist, Settings::BlackFog,
+					Settings::CutawayEnabled && Settings::CutawayMode == 1);
 			}
 		}
 
@@ -610,6 +667,7 @@ namespace Occlusion
 			}
 			KeepFogBlack(cell);
 			SetSkyHidden(Settings::HideSky && cell->IsInteriorCell());
+			LogInteriorLight(player, cell, a_delta);
 			if (Settings::InteriorOnly && !cell->IsInteriorCell()) {
 				RestoreShapes();
 				Cut::Deactivate();

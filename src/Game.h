@@ -81,6 +81,10 @@ namespace State
 	inline std::atomic<float> aimGroundX{ 0.0f }, aimGroundY{ 0.0f }, aimGroundZ{ 0.0f };  // under it, for the ring
 	inline std::atomic<bool>  inventoryOpen{ false };    // inventory, container, shop, gift or magic menu (Grid Inventory too)
 	inline std::atomic<bool> labelKeyHeld{ false };
+	// Bumped by Game whenever the player changes cell or is moved further than they could walk (a door, a load).
+	// The outline renderer reads every model again from scratch when it changes.
+	inline std::atomic<std::uint32_t> cellEpoch{ 0 };
+	inline std::atomic<bool>          interior{ false };  // the player's cell is an interior (for the debug log)
 	inline std::atomic<int>  moveKeysHeld{ 0 };  // WASD keys currently down
 
 	// Where a click is sending the player, for the HUD's destination ring. Written by Game, read by the HUD.

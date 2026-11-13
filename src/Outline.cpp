@@ -44,6 +44,10 @@ namespace Outline
 		constexpr std::uint32_t kRetryFrames = 20;
 		constexpr std::uint8_t  kMaxTries = 15;
 		constexpr std::uint32_t kCountFrames = 15;  // how often a living model's part count is checked
+		// After kMaxTries short reads a model's answer used to be kept for good, so a player whose model was read
+		// short once (going through a door, while its parts are rebuilt) kept no outline until something was
+		// equipped. The player is now read again this often for as long as it stays short.
+		constexpr std::uint32_t kPlayerSlowRetryFrames = 300;
 
 		struct Entry
 		{
@@ -273,12 +277,19 @@ namespace Outline
 				// What to outline this frame.
 				std::vector<Entry> entries;
 				entries.reserve(targets->size());
+				const char* playerState = "not in the target list";  // for the interior debug log
 				for (const auto& target : *targets) {
+					if (target.kind == Game::Kind::kPlayer) {
+						playerState = target.points.empty() ? "no outline points (no 3D)" : "listed";
+					}
 					if (target.formID == 0 || target.points.empty()) {
 						continue;
 					}
 					const bool hot = hovered && target.handle == hovered;
 					if (!Wanted(target, hot)) {
+						if (target.kind == Game::Kind::kPlayer) {
+							playerState = "not wanted (Outlines/Player switch)";
+						}
 						continue;
 					}
 					Entry entry{};
@@ -291,6 +302,9 @@ namespace Outline
 					}
 					entry.radius += target.pad + 20.0f;
 					if (!camera->PointInFrustum(entry.centre, entry.radius)) {
+						if (target.kind == Game::Kind::kPlayer) {
+							playerState = "outside the camera's view";
+						}
 						continue;
 					}
 					entry.formID = target.formID;
@@ -314,6 +328,7 @@ namespace Outline
 					entries.push_back(entry);
 				}
 				if (entries.empty()) {
+					LogPlayer(a_frame, playerState, RE::PlayerCharacter::GetSingleton(), 0);
 					return;
 				}
 				// Most important first, then whatever was drawn last frame, then nearest. The order only
@@ -344,6 +359,19 @@ namespace Outline
 
 				auto& cache = RenderGeometryCache::instance();
 				cache.drain_invalidations();
+				// A door or a load (Game bumps the epoch): every model gets its full set of reads again. Without this a
+				// model read short during the transition kept its short answer in the new cell.
+				if (const auto epoch = State::cellEpoch.load(); epoch != _epoch) {
+					_epoch = epoch;
+					for (const auto& [formID, info] : _parts) {
+						cache.erase(formID);
+					}
+					_parts.clear();
+					_behind.clear();
+					if (Settings::InteriorDebugLog) {
+						logs::info("[interior] cell changed (interior={}): outline models will be read again", State::interior.load());
+					}
+				}
 				if (_behind.size() > 1024) {
 					_behind.clear();
 				}
@@ -387,6 +415,8 @@ namespace Outline
 							info.tries = 0;  // a new or changed model: its parts get their time to load again
 						} else if (info.coverage < kFullCoverage && info.tries < kMaxTries && a_frame - info.readAt >= kRetryFrames) {
 							stale = true;  // it came back short last time: read it again
+						} else if (info.coverage < kFullCoverage && a_formID == 0x14 && a_frame - info.readAt >= kPlayerSlowRetryFrames) {
+							stale = true;  // the player never stays without an outline for good
 						}
 						if (stale) {
 							cache.erase(a_formID);
@@ -443,19 +473,32 @@ namespace Outline
 				for (const auto& entry : entries) {
 					std::vector<RenderGeometry> group;
 					const bool                  whole = fetch(entry.formID, entry.living, group);
+					const bool                  isPlayerEntry = player && entry.formID == player->GetFormID();
 					if (group.empty()) {
+						if (isPlayerEntry) {
+							playerState = "no model parts could be read";
+						}
 						continue;
 					}
 					// All or nothing: fragments of a character are worse than no outline. The one under
 					// the cursor still shows what there is.
 					if (!whole && !entry.hot && !Settings::OutlinePartial) {
 						++partial;
+						if (isPlayerEntry) {
+							playerState = "model only read in part (left out: Partial = 0)";
+						}
 						continue;
 					}
 					// Out of room for this one. Keep going: a smaller model further down may still fit.
 					if (total + group.size() > maxParts) {
 						++leftOut;
+						if (isPlayerEntry) {
+							playerState = "left out by MaxParts";
+						}
 						continue;
+					}
+					if (isPlayerEntry) {
+						playerState = "drawn";
 					}
 					total += group.size();
 					_drawn.insert(entry.formID);
@@ -498,10 +541,31 @@ namespace Outline
 						total, geometries.size(), leftOut, partial);
 				}
 
+				LogPlayer(a_frame, playerState, player, total);
+
 				if (!geometries.empty()) {
 					_mask.draw(a_device, a_context, camera, a_output, a_width, a_height, colors, geometries, *_states);
 				}
 				_mask.end_frame();
+			}
+
+			// [Debug] Interior: once a second, why your own outline is or isn't drawn, so a missing outline indoors or
+			// after a door can be told apart: not listed, off screen, model read short, out of parts, or drawn.
+			void LogPlayer(std::uint32_t a_frame, const char* a_state, RE::PlayerCharacter* a_player, std::size_t a_total)
+			{
+				if (!Settings::InteriorDebugLog || a_frame - _lastPlayerLog < 60) {
+					return;
+				}
+				_lastPlayerLog = a_frame;
+				const auto it = a_player ? _parts.find(a_player->GetFormID()) : _parts.end();
+				if (it == _parts.end()) {
+					logs::info("[interior] player outline: {} (interior={}, epoch={}, model not read yet)", a_state, State::interior.load(), _epoch);
+					return;
+				}
+				const auto& info = it->second;
+				logs::info("[interior] player outline: {} (interior={}, epoch={}, read {:.0f}% of the model, {} short reads in a row, {} parts, "
+						   "read {} frames ago, {} parts drawn this frame)",
+					a_state, State::interior.load(), _epoch, info.coverage * 100.0f, static_cast<int>(info.tries), info.count, a_frame - info.readAt, a_total);
 			}
 
 			std::uint32_t                               _lastFrame{ std::numeric_limits<std::uint32_t>::max() };
@@ -512,6 +576,8 @@ namespace Outline
 			std::unordered_map<RE::FormID, bool>        _behind;  // per target: currently behind the player
 			std::unordered_set<RE::FormID>              _drawn;   // targets outlined on the last frame
 			std::uint32_t                               _lastBudgetLog{ 0 };
+			std::uint32_t                               _lastPlayerLog{ 0 };
+			std::uint32_t                               _epoch{ 0 };      // State::cellEpoch the models were read in
 			bool                                        _ready{ false };
 		};
 

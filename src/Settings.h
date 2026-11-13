@@ -8,7 +8,7 @@ namespace Settings
 	// ---------------------------------------------------------------- camera and cutaway
 	// [Camera] - camera lock (formerly IsoCamLock)
 	inline bool          CameraEnabled = true;        // camera lock on at game start
-	inline bool          LockYaw = false;             // free mouse rotation by default
+	inline bool          LockYaw = true;              // fixed compass heading by default (YawStepKey turns it); off = free mouse rotation
 	inline bool          LockPitch = true;
 	inline float         Yaw = 45.0f;                 // world heading when LockYaw: 0 = north, 90 = east
 	inline float         Pitch = 30.0f;               // degrees looking down (30 = the Path of Exile 2 default)
@@ -21,6 +21,7 @@ namespace Settings
 	inline bool          ManageCamera = true;         // apply the five values below (off = leave the camera to the game or another mod)
 	inline float         CameraDistance = 1290.0f;    // how far the camera sits from you
 	inline float         CameraFov = 50.0f;           // field of view, degrees
+	inline float         FirstPersonFov = 90.0f;      // first person: set once on entering, then left alone (0 = held at CameraFov, as before 2.1)
 	inline float         CameraOffsetX = 0.0f;        // sideways shoulder offset (0 = centred)
 	inline float         CameraOffsetZ = 0.0f;        // height offset
 	inline bool          WheelZoom = false;           // mouse wheel zooms (and can scroll into first person)
@@ -139,6 +140,7 @@ namespace Settings
 	inline bool          ClickInteract = true;        // clicking an item, container, corpse, door or NPC walks over and uses it
 	inline std::uint32_t AttackInPlaceKey = 0x2A;     // Left Shift + click: attack toward the cursor without moving
 	inline float         FaceTime = 0.15f;            // seconds spent turning toward the target when attacking
+	inline int           OnAttack = 0;                // when an attack starts: 0 = stop the click-move, 1 = keep moving (aim follows the target)
 
 	// [Pickup]
 	inline std::uint32_t PickupButton = 2;            // middle mouse button (mouse 3)
@@ -161,6 +163,9 @@ namespace Settings
 	inline bool          ShowIngredients = false;     // loot filter: alchemy ingredients
 	inline bool          ShowBooks = false;           // loot filter: books and notes (spell tomes always show)
 	inline bool          ShowClutter = false;         // loot filter: junk (kettles, buckets, torches...)
+	// POErim (DiabloLootAPI v2, POErim 2.1.0+). Without it nothing here changes anything.
+	inline bool          UseRarityColor = true;       // labels and outlines in POErim's rarity colour; orbs always show as loot
+	inline std::uint32_t CurrencyColor = 0;           // 0xRRGGBB for orbs; 0 = POErim's own currency colour
 
 	// [Combat]
 	inline bool          HoldToAttack = true;      // holding the attack button swings again and again (melee)
@@ -207,6 +212,7 @@ namespace Settings
 	// [Debug]
 	inline bool CutawayDebugLog = false;
 	inline bool PointClickDebugLog = false;
+	inline bool InteriorDebugLog = false;  // interior outline, fog and darkness diagnostics
 
 	
 

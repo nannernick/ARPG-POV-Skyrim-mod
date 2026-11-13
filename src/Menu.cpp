@@ -1,6 +1,7 @@
 #include "Menu.h"
 #include "Camera.h"
 #include "Input.h"
+#include "LootApi.h"
 #include "Occlusion.h"
 #include "Settings.h"
 
@@ -109,6 +110,9 @@ namespace Menu
 			view |= SliderFloat("Distance", &Settings::CameraDistance, 100.0f, 2000.0f, "%.0f");
 			view |= SliderFloat("Field of view", &Settings::CameraFov, 30.0f, 120.0f, "%.0f");
 			Hint("A lower field of view from further away looks flatter, like most ARPGs.");
+			SliderFloat("First person field of view", &Settings::FirstPersonFov, 0.0f, 150.0f, "%.0f");
+			Hint("Set once when you switch to first person, then left alone (the console's fov or another mod can change it).\n"
+				 "Below 30 = first person keeps the field of view above, as before 2.1.");
 			view |= SliderFloat("Sideways offset", &Settings::CameraOffsetX, -300.0f, 300.0f, "%.0f");
 			view |= SliderFloat("Height offset", &Settings::CameraOffsetZ, -300.0f, 300.0f, "%.0f");
 			managed |= Checkbox("Mouse wheel zooms", &Settings::WheelZoom);
@@ -177,13 +181,15 @@ namespace Menu
 
 			SeparatorText("Background");
 			Checkbox("Black interior fog", &Settings::BlackFog);
+			Hint("Turning it off gives the room its own fog colours back at once. Turning it on applies fully the next time you enter a cell.");
 			Checkbox("Hide sky indoors", &Settings::HideSky);
-			Hint("Fog and sky changes apply the next time you enter a cell.");
 
 			SeparatorText("Advanced");
 			Checkbox("All geometry (consistent depth)", &Settings::CutAllGeometry);
 			Hint("Leave on. Off only cuts meshes that cross the plane, which hides props in many rooms.");
 			Checkbox("Cutaway debug log", &Settings::CutawayDebugLog);
+			Checkbox("Interior debug log", &Settings::InteriorDebugLog);
+			Hint("Writes your outline's state indoors and at doors, and the interior fog, to ARPGPOV.log. For dark rooms and missing outlines.");
 
 			Footer();
 		}
@@ -210,6 +216,11 @@ namespace Menu
 			SliderFloat("Max click distance", &Settings::MaxDistance, 500.0f, 10000.0f, "%.0f");
 			const char* const modes[] = { "Auto", "True Directional Movement", "Turn the player (no TDM)" };
 			Combo("Movement mode", &Settings::MoveMode, modes, 3);
+			const char* const onAttack[] = { "Stop moving", "Keep moving" };
+			Combo("When an attack starts", &Settings::OnAttack, onAttack, 2);
+			Hint("Stop moving: any attack (a swing, drawing a bow, casting) cancels the click-move you are on.\n"
+				 "Keep moving: you keep walking where you clicked; spells and arrows still go to the cursor.\n"
+				 "With True Directional Movement your body faces the way you walk while you do.");
 
 			SeparatorText("Clicking things");
 			Checkbox("Clicking an enemy attacks it", &Settings::ClickEnemies);
@@ -338,6 +349,31 @@ namespace Menu
 			SameLine();
 			Checkbox("Clutter", &Settings::ShowClutter);
 			Hint("Kettles, buckets, plates, torches and other junk.");
+
+			SeparatorText("POErim");
+			if (LootApi::HasV2()) {
+				TextDisabled("POErim 2.1.0+ found.");
+			} else {
+				TextDisabled("POErim 2.1.0+ not found: these do nothing.");
+			}
+			Checkbox("Rarity colours", &Settings::UseRarityColor);
+			Hint("Labels and outlines take the item's rarity colour from POErim: normal, magic, rare, currency, corrupted.\n"
+				 "Its orbs always show as loot, whatever the filter says.");
+			bool  ownCurrency = Settings::CurrencyColor != 0;
+			float currency[3] = { static_cast<float>((Settings::CurrencyColor >> 16) & 0xFF) / 255.0f,
+				static_cast<float>((Settings::CurrencyColor >> 8) & 0xFF) / 255.0f, static_cast<float>(Settings::CurrencyColor & 0xFF) / 255.0f };
+			if (Checkbox("Own currency colour", &ownCurrency)) {
+				Settings::CurrencyColor = ownCurrency ? 0xE6C364u : 0u;
+			}
+			Hint("Off: orbs use POErim's own currency colour.");
+			if (ownCurrency) {
+				SameLine();
+				if (ColorEdit3("Currency colour", currency, 0)) {
+					const auto channel = [](float a_v) { return static_cast<std::uint32_t>(std::lround(std::clamp(a_v, 0.0f, 1.0f) * 255.0f)); };
+					// Pure black is the "use POErim's colour" value, so it is kept one step off black.
+					Settings::CurrencyColor = std::max((channel(currency[0]) << 16) | (channel(currency[1]) << 8) | channel(currency[2]), 0x000001u);
+				}
+			}
 
 			Footer();
 		}

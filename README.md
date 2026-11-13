@@ -52,9 +52,9 @@ If you use [3PCO - 3rd Person Camera Overhaul](https://www.nexusmods.com/skyrims
 |---|---|
 | Camera | Preset, pitch, yaw lock, distance, FOV, offsets, TDM behaviour |
 | Cutaway | On/off, Default or Automatic style, cut height |
-| Controls | Point and click, cursor, click behaviour, hold to attack, auto-attack, aim at the cursor, steer spells and arrows, aim line and ring |
+| Controls | Point and click, cursor, click behaviour, stop or keep moving when you attack, hold to attack, auto-attack, aim at the cursor, steer spells and arrows, aim line and ring |
 | Outlines | Who glows, ground circles, glow, distances |
-| Labels and Loot | Labels and the loot filter |
+| Labels and Loot | Labels, the loot filter, POErim rarity colours |
 | HUD | Globes, vanilla bars, size, numbers, hide in menus |
 | Player | Carry weight and speed |
 
@@ -73,7 +73,9 @@ Click **Save to INI** to keep your changes. The INI is `Data/SKSE/Plugins/ARPGPO
 | F1 / F7 / F8 | Settings / point and click on-off / reload INI |
 | F9 / F10 | Cutaway style / camera lock on-off |
 | Page Up / Page Down | Camera pitch |
-| F2 | Turn 90° (with Lock yaw on). Insert before 1.6.1; an INI you kept still has Insert |
+| F2 | Turn the camera 90° (Lock yaw is on by default from 2.1; F2 does nothing with it off). Insert before 1.6.1; an INI you kept still has Insert |
+
+Attacking (a swing, drawing a bow, casting) stops a click-move by default. F1 → Controls → **When an attack starts** → *Keep moving* walks on while you shoot.
 
 Cursor: a red sword means attack, a gold bag means loot, an exclamation mark means talk (green) or use (white), and an arrow means move. A small ring on the ground marks where a click is sending you.
 
@@ -102,6 +104,8 @@ Cursor: a red sword means attack, a gold bag means loot, an exclamation mark mea
 
 **Loot filter:** gear, potions, scrolls, keys, soul gems, gold, gems and ore always show. Food, ingredients, books and clutter each have a switch. `MinValue` hides cheap items.
 
+**POErim:** with POErim 2.1.0 or later, labels and outlines take each item's rarity colour from POErim (normal grey, magic blue, rare yellow, currency gold, corrupted red; the colours are POErim's own), and its orbs always show as loot. Without POErim 2.1.0 nothing changes: enchanted items stay blue as before. `[Labels] UseRarityColor` and `CurrencyColor` control it.
+
 INI defaults (the values in the shipped `ARPGPOV.ini`):
 
 <details>
@@ -111,9 +115,10 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 |---|---|---|
 | `Enabled` | 1 | Lock on at game start |
 | `LockPitch` / `Pitch` | 1 / 30 | Lock the angle, degrees looking down |
-| `LockYaw` / `Yaw` | 0 / 45 | Lock the compass direction (0 = north) |
+| `LockYaw` / `Yaw` | 1 / 45 | Lock the compass direction (0 = north). On by default from 2.1 |
 | `Preset` | Default | Camera look: Default (same as Path of Exile 2), Custom, Skyrim ARPG, Diablo II, Path of Exile, Path of Exile 2, Diablo III, Diablo IV, Last Epoch, Grim Dawn, Torchlight II. Sets pitch, FOV and distance; only the pitch of Diablo II, Path of Exile and Path of Exile 2 was measured, the rest are estimates |
 | `Manage` / `Distance` / `Fov` / `OffsetX` / `OffsetZ` / `WheelZoom` | 1 / 1290 / 50 / 0 / 0 / 0 | Camera distance, field of view, shoulder offsets, mouse-wheel zoom (replaces 3PCO - 3rd Person Camera Overhaul) |
+| `FirstPersonFov` | 90 | First person field of view, set once when you switch to first person and then left alone (the console's `fov` works). Below 30 = first person keeps `Fov`, as before 2.1 |
 | `FixInteriorRooms` | 1 | Draw your room when the camera is above the ceiling |
 | `PauseOnTargetLock` | 0 | Let TDM hold the camera while locked on |
 | `KeepHeading` | 1 | Keep the camera's compass heading when TDM turns it (target lock, its camera reset, its auto-adjust), while the mouse isn't turning the camera |
@@ -161,6 +166,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `BlackFog` | 1 | Black interior fog while inside |
 | `HideSky` | 1 | Hide the sky dome while inside |
 | `[Debug] Cutaway` / `PointClick` | 0 / 0 | Write diagnostics to `ARPGPOV.log` |
+| `[Debug] Interior` | 0 | Your outline indoors and at doors, and the interior fog (dark rooms), in `ARPGPOV.log` |
 </details>
 
 <details>
@@ -178,6 +184,7 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `[Move] ArriveRadius` / `MaxDistance` | 40 / 3000 | Stop distance, furthest one click sends you |
 | `[Move] ClickEnemies` / `ClickInteract` / `AttackInPlaceKey` | 1 / 1 / 0x2A (Shift) | Click enemies to attack, click things to use them, attack-in-place key |
 | `[Move] Mode` | 0 | 0 = auto, 1 = TDM, 2 = turn the player (no TDM) |
+| `[Move] OnAttack` | 0 | When an attack starts: 0 = stop the click-move, 1 = keep moving where you clicked (spells and arrows still go to the cursor; with TDM your body faces the way you walk) |
 | `[Pickup] Button` / `Range` | 2 (middle) / 150 | Extra use button, reach before you walk |
 | `[Pickup] Containers` / `Actors` / `Activators` | 1 / 1 / 1 | Chests and barrels / corpses and NPCs / named furniture and activators (seats, levers) can be clicked |
 | `[Labels] Mode` / `Key` | 1 / 0x38 (Alt) | 0 = hovered only, 1 = always, 2 = while the key is held |
@@ -185,6 +192,8 @@ INI defaults (the values in the shipped `ARPGPOV.ini`):
 | `[Labels] Max` / `Scale` / `MinValue` | 100 / 0.6 / 15 | Label cap, text size, minimum value |
 | `[Labels] StackCount` | 5 | Stacks this big or bigger read `200x Gold`; smaller ones show the name only |
 | `[Labels] ShowFood` / `ShowIngredients` / `ShowBooks` / `ShowClutter` | 0 / 0 / 0 / 0 | Loot filter switches |
+| `[Labels] UseRarityColor` | 1 | POErim 2.1.0+ only: labels and outlines in POErim's rarity colour, orbs always shown. Does nothing without it |
+| `[Labels] CurrencyColor` | 0x000000 | Orb colour (0xRRGGBB); 0 = POErim's own currency colour |
 | `[Globes] Enabled` / `HideVanillaBars` / `Size` / `Numbers` / `Animate` | 1 / 1 / 1 / 1 / 1 | Life and mana globes, hide the game's bars, globe size, numbers, moving liquid |
 | `[Globes] HideInMenus` | 1 | Hide the globes while the inventory, a container, a shop or the magic menu is open |
 | `[Outlines] Enabled` / `Enemies` / `NPCs` / `Player` / `Loot` | 1 / 1 / 0 / 1 / 0 | Outlines on, and per group (hovered things always glow). `Loot` = dropped items, containers and corpses (`Items` before 1.6) |
@@ -234,6 +243,8 @@ Planned, not in this version:
 - **An MCM settings page.**
 
 ## Known issues
+- **Interiors can go dark, and your own outline can be missing indoors or after a door** (2.1 adds a fix for the outline after doors and a diagnostic for both). If it still happens, set `[Debug] Interior = 1`, reproduce it, and send `ARPGPOV.log`. For a dark room, also try F1 → Cutaway → untick *Black interior fog* while it is dark (from 2.1 this applies at once).
+- **Keep moving while attacking (`OnAttack = 1`) with TDM:** your character faces the way you walk, not the target, because TDM moves the body along its facing. Spells and arrows still fly to the cursor. A melee swing goes the way you walk.
 - **Interiors can crash** (seen in a cave, and going downstairs with the cutaway on). The Automatic cutaway style is suspected. A Crash Logger SSE log is needed to find it.
 - **Your own outline can flip in front of / behind your character** while moving indoors.
 - **Outlines could show only fragments of a character in a crowd** (a helmet, boots, bracers) in 1.6.0. From 1.6.1 a character is outlined whole or not at all, and its model is read again while it is still loading. Needs testing. If a kind of enemy now never gets an outline, set `[Outlines] Partial = 1` and send `ARPGPOV.log`.

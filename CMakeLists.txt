@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ARPGPOV VERSION 2.0.0 LANGUAGES CXX)
+project(ARPGPOV VERSION 2.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +55,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
 		src/Globes.cpp
 		src/Hud.cpp
 		src/Input.cpp
+		src/LootApi.cpp
 		src/Menu.cpp
 		src/Occlusion.cpp
 		src/Outline.cpp

@@ -7,6 +7,7 @@
 #include "Game.h"
 #include "Hud.h"
 #include "Input.h"
+#include "LootApi.h"
 #include "Menu.h"
 #include "Occlusion.h"
 #include "Outline.h"
@@ -32,6 +33,9 @@ namespace
 			Camera::ApplyCameraSettings();
 			Game::RegisterMenuSink();
 			Outline::Install();
+			if (!LootApi::HasV2()) {
+				logs::info("[loot] no POErim DiabloLootAPI v2 (POErim 2.1.0+ not installed): loot colours as before");
+			}
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
 			Occlusion::RestoreAll();
@@ -69,6 +73,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 	if (auto* messaging = SKSE::GetMessagingInterface()) {
 		messaging->RegisterListener(OnMessage);
 	}
+	LootApi::Register();  // POErim's loot API (rarity colours), if POErim 2.1.0+ is installed
 
 	logs::info("ARPG POV loaded");
 	return true;
